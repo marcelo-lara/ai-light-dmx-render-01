@@ -4,6 +4,7 @@ import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from src.config import FIXTURES_JSON, POIS_JSON
+from src.dmx.models.fixtures import load_all as _load_fixtures
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ class ConnectionManager:
 
 
 def _load_init_data() -> dict:
-    fixtures = json.loads(FIXTURES_JSON.read_text())
+    fixtures = [f.to_dict() for f in _load_fixtures(str(FIXTURES_JSON))]
     pois = json.loads(POIS_JSON.read_text())
     return {"type": "init", "fixtures": fixtures, "pois": pois}
 

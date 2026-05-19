@@ -1,18 +1,27 @@
 import { useState, useEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 
+export type FixtureType = 'moving_head' | 'parcan';
+
 export interface FixtureLocation {
   x: number;
   y: number;
   z: number;
 }
 
+export type MountType = 'wall_left' | 'wall_right' | 'wall_back' | 'ceiling';
+
 export interface Fixture {
   id: string;
   name: string;
-  fixture: string;
+  fixture: string;          // template ref, e.g. "fixture.moving_head.mini_beam_prism"
+  fixture_type: FixtureType; // discriminator from backend fixture model
   base_channel: number;
+  channel_count: number;
+  absolute_channels: Record<string, number>;
   location: FixtureLocation;
+  mount?: MountType;
+  beam_angle_degrees: number;
 }
 
 export interface POI {

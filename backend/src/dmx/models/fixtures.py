@@ -14,14 +14,13 @@ Instantiate via the factory functions at the bottom of this module.
 from __future__ import annotations
 
 import json
-import os
 from abc import ABC, abstractmethod
 from typing import Union
 
-# Resolved at import time; works both inside Docker (/app/data) and locally.
-_DATA_FIXTURES_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "..", "data", "fixtures"
-)
+from src.config import FIXTURES_JSON
+
+# Fixtures are mounted at /app/fixtures in Docker (docker-compose volume).
+_DATA_FIXTURES_DIR = FIXTURES_JSON.parent
 
 
 # ---------------------------------------------------------------------------
@@ -47,9 +46,11 @@ class BaseFixture(ABC):
         self.fixture_ref: str = instance["fixture"]
         self.base_channel: int = instance["base_channel"]   # 1-based
         self.location: dict = instance["location"]
+        self.mount: str | None = instance.get("mount")  # wall_left / wall_right / wall_back / None
 
         # Template data
         self.fixture_type: str = template["type"]
+        self.beam_angle_degrees: float = template.get("beam_angle_degrees", 10.0)
         self.channels: dict[str, int] = template["channels"]   # name → 0-based offset
         self.meta_channels: dict = template.get("meta_channels", {})
         self.mappings: dict = template.get("mappings", {})
@@ -133,6 +134,21 @@ class BaseFixture(ABC):
         the fixture's current DMX state, indexed by 0-based channel offset.
         """
         ...
+
+    def to_dict(self) -> dict:
+        """Serialise to a JSON-safe dict suitable for the WebSocket init message."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "fixture": self.fixture_ref,
+            "fixture_type": self.fixture_type,
+            "base_channel": self.base_channel,
+            "location": self.location,
+            "mount": self.mount,
+            "beam_angle_degrees": self.beam_angle_degrees,
+            "channel_count": self.channel_count,
+            "absolute_channels": self.absolute_channels,
+        }
 
     def __repr__(self) -> str:
         return (
@@ -332,7 +348,7 @@ def load_template(fixture_ref: str) -> dict:
         The ``fixture`` field from a ``fixtures.json`` instance row,
         e.g. ``"fixture.moving_head.mini_beam_prism"``.
     """
-    path = os.path.join(_DATA_FIXTURES_DIR, f"{fixture_ref}.json")
+    path = _DATA_FIXTURES_DIR / f"{fixture_ref}.json"
     with open(path) as fh:
         return json.load(fh)
 
@@ -373,6 +389,7 @@ def load_all(fixtures_json_path: str) -> list[BaseFixture]:
     fixtures_json_path : str
         Absolute path to ``fixtures.json``.
     """
-    with open(fixtures_json_path) as fh:
+    from pathlib import Path
+    with open(Path(fixtures_json_path)) as fh:
         instances = json.load(fh)
     return [instantiate(inst) for inst in instances]

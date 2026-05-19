@@ -4,11 +4,11 @@ services:
     volumes:
       - ./data/fixtures:/app/fixtures:ro
     ports:
-      - "8000:8000"
+      - "5141:5141"
 
   frontend:
     build: ./frontend
     ports:
-      - "5173:5173"
+      - "5140:5140"
     depends_on:
       - backend

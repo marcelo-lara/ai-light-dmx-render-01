@@ -13,7 +13,8 @@ export function BouncingBall({ meshRef, ballPositionRef }: Props) {
   useFrame(() => {
     if (!meshRef.current) return;
     const { x, y, z } = ballPositionRef.current;
-    meshRef.current.position.set(x, y, z);
+    // Remap room coords → scene coords: room.z (height) → sceneY, room.y (depth) → sceneZ
+    meshRef.current.position.set(x, z, y);
   });
 
   return (

@@ -2,8 +2,9 @@ import { useFixtures } from './hooks/useFixtures';
 import { StageCanvas } from './components/StageCanvas';
 
 export function App() {
-  const { fixtures, connected, ballPositionRef } = useFixtures();
-  const movingHeads = fixtures.filter((f) => f.fixture.includes('moving_head'));
+  const { fixtures, pois, connected, ballPositionRef } = useFixtures();
+  const movingHeads = fixtures.filter((f) => f.fixture_type === 'moving_head');
+  const parcans = fixtures.filter((f) => f.fixture_type === 'parcan');
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -23,7 +24,7 @@ export function App() {
           connecting to backend…
         </div>
       )}
-      <StageCanvas fixtures={movingHeads} ballPositionRef={ballPositionRef} />
+      <StageCanvas movingHeads={movingHeads} parcans={parcans} pois={pois} ballPositionRef={ballPositionRef} />
     </div>
   );
 }
