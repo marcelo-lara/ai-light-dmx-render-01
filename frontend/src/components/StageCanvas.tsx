@@ -2,7 +2,8 @@ import { useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import type { Fixture } from '../hooks/useFixtures';
+import type { MutableRefObject } from 'react';
+import type { Fixture, FixtureLocation } from '../hooks/useFixtures';
 import { BoundingBox } from './BoundingBox';
 import { BouncingBall } from './BouncingBall';
 import { MovingHead } from './MovingHead';
@@ -11,9 +12,10 @@ const BEAM_COLORS = ['#4488ff', '#ff6680', '#44dd88'];
 
 interface Props {
   fixtures: Fixture[];
+  ballPositionRef: MutableRefObject<FixtureLocation>;
 }
 
-export function StageCanvas({ fixtures }: Props) {
+export function StageCanvas({ fixtures, ballPositionRef }: Props) {
   const ballRef = useRef<THREE.Mesh>(null);
 
   return (
@@ -33,7 +35,7 @@ export function StageCanvas({ fixtures }: Props) {
       />
 
       <BoundingBox />
-      <BouncingBall meshRef={ballRef} />
+      <BouncingBall meshRef={ballRef} ballPositionRef={ballPositionRef} />
 
       {fixtures.map((f, i) => (
         <MovingHead

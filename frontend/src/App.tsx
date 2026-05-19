@@ -2,7 +2,7 @@ import { useFixtures } from './hooks/useFixtures';
 import { StageCanvas } from './components/StageCanvas';
 
 export function App() {
-  const { fixtures, connected } = useFixtures();
+  const { fixtures, connected, ballPositionRef } = useFixtures();
   const movingHeads = fixtures.filter((f) => f.fixture.includes('moving_head'));
 
   return (
@@ -23,7 +23,7 @@ export function App() {
           connecting to backend…
         </div>
       )}
-      <StageCanvas fixtures={movingHeads} />
+      <StageCanvas fixtures={movingHeads} ballPositionRef={ballPositionRef} />
     </div>
   );
 }
