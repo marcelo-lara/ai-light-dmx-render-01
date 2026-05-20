@@ -6,7 +6,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.websocket import ConnectionManager
-from src.config import FRAME_INTERVAL
+from src.config import FIXTURES_JSON, FRAME_INTERVAL
+from src.dmx.models.fixtures import load_all as _load_fixtures
 from src.simulation.ball import BallSimulator
 
 logger = logging.getLogger(__name__)
@@ -17,8 +18,16 @@ async def _frame_loop(app: FastAPI) -> None:
         await asyncio.sleep(FRAME_INTERVAL)
         app.state.ball.tick()
         if app.state.manager:
+            fixture_states = {
+                f.id: {"color_hex": f.color_hex, "intensity": f.intensity}
+                for f in app.state.fixtures
+            }
             await app.state.manager.broadcast(
-                {"type": "frame", "ball": app.state.ball.position()}
+                {
+                    "type": "frame",
+                    "ball": app.state.ball.position(),
+                    "fixture_states": fixture_states,
+                }
             )
 
 
@@ -26,6 +35,7 @@ async def _frame_loop(app: FastAPI) -> None:
 async def lifespan(app: FastAPI):
     app.state.manager = ConnectionManager()
     app.state.ball = BallSimulator()
+    app.state.fixtures = _load_fixtures(str(FIXTURES_JSON))
 
     task = asyncio.create_task(_frame_loop(app))
     logger.info("Frame loop started at %d FPS", round(1 / FRAME_INTERVAL))

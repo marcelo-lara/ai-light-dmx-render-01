@@ -1,8 +1,13 @@
-import type { Fixture } from '../hooks/useFixtures';
+import { useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
+import type { MutableRefObject } from 'react';
+import type { Fixture, FixtureState } from '../hooks/useFixtures';
 
 interface Props {
   fixtureData: Fixture;
-  color: string;
+  fixtureId: string;
+  fixtureStatesRef: MutableRefObject<Record<string, FixtureState>>;
 }
 
 /**
@@ -12,9 +17,18 @@ interface Props {
  * placement. The beam is a downward cone — narrow at the lens, wide at the
  * floor — spanning the full unit-cube height.
  */
-export function ParCan({ fixtureData, color }: Props) {
+export function ParCan({ fixtureData, fixtureId, fixtureStatesRef }: Props) {
   // location.x → scene X, location.z → scene Y (mounting height), location.y → scene Z (depth)
   const { x, y: sceneZ, z: mountHeight } = fixtureData.location;
+  const beamMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
+
+  useFrame(() => {
+    const fs = fixtureStatesRef.current[fixtureId];
+    if (fs && beamMaterialRef.current) {
+      beamMaterialRef.current.color.set(fs.color_hex);
+      beamMaterialRef.current.opacity = fs.intensity * 0.4;
+    }
+  });
 
   return (
     <group position={[x, mountHeight, sceneZ]}>
@@ -35,7 +49,7 @@ export function ParCan({ fixtureData, color }: Props) {
           mountHeight * Math.tan((fixtureData.beam_angle_degrees / 2) * (Math.PI / 180)),
           mountHeight, 10
         ]} />
-        <meshBasicMaterial color={color} transparent opacity={0.4} />
+        <meshBasicMaterial ref={beamMaterialRef} color="#000000" transparent opacity={0} />
       </mesh>
     </group>
   );

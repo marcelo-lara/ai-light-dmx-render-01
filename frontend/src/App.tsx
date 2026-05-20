@@ -1,13 +1,14 @@
 import { useFixtures } from './hooks/useFixtures';
 import { StageCanvas } from './components/StageCanvas';
+import { Sidebar } from './components/Sidebar';
 
 export function App() {
-  const { fixtures, pois, connected, ballPositionRef } = useFixtures();
+  const { fixtures, pois, connected, ballPositionRef, fixtureStatesRef, sendFixtureCommand } = useFixtures();
   const movingHeads = fixtures.filter((f) => f.fixture_type === 'moving_head');
   const parcans = fixtures.filter((f) => f.fixture_type === 'parcan');
 
   return (
-    <div style={{ width: '100vw', height: '100vh' }}>
+    <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden' }}>
       {!connected && (
         <div
           style={{
@@ -24,7 +25,10 @@ export function App() {
           connecting to backend…
         </div>
       )}
-      <StageCanvas movingHeads={movingHeads} parcans={parcans} pois={pois} ballPositionRef={ballPositionRef} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <StageCanvas movingHeads={movingHeads} parcans={parcans} pois={pois} ballPositionRef={ballPositionRef} fixtureStatesRef={fixtureStatesRef} />
+      </div>
+      <Sidebar movingHeads={movingHeads} parcans={parcans} sendFixtureCommand={sendFixtureCommand} />
     </div>
   );
 }

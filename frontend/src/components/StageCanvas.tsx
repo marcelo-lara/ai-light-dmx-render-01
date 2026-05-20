@@ -3,24 +3,22 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import type { MutableRefObject } from 'react';
-import type { Fixture, FixtureLocation, POI } from '../hooks/useFixtures';
+import type { Fixture, FixtureLocation, FixtureState, POI } from '../hooks/useFixtures';
 import { BoundingBox } from './BoundingBox';
 import { BouncingBall } from './BouncingBall';
 import { MovingHead } from './MovingHead';
 import { ParCan } from './ParCan';
 import { POIMarker } from './POIMarker';
 
-const MOVING_HEAD_COLORS = ['#4488ff', '#ff6680', '#44dd88'];
-const PARCAN_COLORS = ['#ff6644', '#ff44aa', '#44aaff', '#88ff44'];
-
 interface Props {
   movingHeads: Fixture[];
   parcans: Fixture[];
   pois: POI[];
   ballPositionRef: MutableRefObject<FixtureLocation>;
+  fixtureStatesRef: MutableRefObject<Record<string, FixtureState>>;
 }
 
-export function StageCanvas({ movingHeads, parcans, pois, ballPositionRef }: Props) {
+export function StageCanvas({ movingHeads, parcans, pois, ballPositionRef, fixtureStatesRef }: Props) {
   const ballRef = useRef<THREE.Mesh>(null);
 
   return (
@@ -48,20 +46,22 @@ export function StageCanvas({ movingHeads, parcans, pois, ballPositionRef }: Pro
           <POIMarker key={p.id} poi={p} />
         ))}
 
-      {parcans.map((f, i) => (
+      {parcans.map((f) => (
         <ParCan
           key={f.id}
           fixtureData={f}
-          color={PARCAN_COLORS[i % PARCAN_COLORS.length]}
+          fixtureId={f.id}
+          fixtureStatesRef={fixtureStatesRef}
         />
       ))}
 
-      {movingHeads.map((f, i) => (
+      {movingHeads.map((f) => (
         <MovingHead
           key={f.id}
           fixtureData={f}
+          fixtureId={f.id}
           targetRef={ballRef}
-          color={MOVING_HEAD_COLORS[i % MOVING_HEAD_COLORS.length]}
+          fixtureStatesRef={fixtureStatesRef}
         />
       ))}
     </Canvas>

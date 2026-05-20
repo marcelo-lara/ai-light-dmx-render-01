@@ -22,6 +22,26 @@ from src.config import FIXTURES_JSON
 # Fixtures are mounted at /app/fixtures in Docker (docker-compose volume).
 _DATA_FIXTURES_DIR = FIXTURES_JSON.parent
 
+# ---------------------------------------------------------------------------
+# Color wheel label → hex colour string
+# ---------------------------------------------------------------------------
+
+#: Maps colour-wheel label strings (as they appear in fixture mapping JSONs)
+#: to their nearest perceptual hex equivalent.  Used by MovingHead.color_hex.
+COLOR_WHEEL_HEX: dict[str, str] = {
+    "White":      "#FFFFFF",
+    "Open/White": "#FFFFFF",
+    "Open":       "#FFFFFF",
+    "Orange":     "#FF8800",
+    "Cyan":       "#00FFFF",
+    "Purple":     "#8800CC",
+    "Yellow":     "#FFFF00",
+    "Green":      "#00FF00",
+    "Blue":       "#0000FF",
+    "Red":        "#FF0000",
+    "Off":        "#000000",
+}
+
 
 # ---------------------------------------------------------------------------
 # Abstract base
@@ -122,6 +142,27 @@ class BaseFixture(ABC):
     # Abstract interface
     # ------------------------------------------------------------------
 
+    @property
+    @abstractmethod
+    def color_hex(self) -> str:
+        """
+        Current output colour as a ``#RRGGBB`` hex string.
+
+        - ``ParCan``: derived from the live RGB channel bytes.
+        - ``MovingHead``: derived from the colour-wheel position via
+          :data:`COLOR_WHEEL_HEX`.
+        """
+        ...
+
+    @property
+    @abstractmethod
+    def intensity(self) -> float:
+        """
+        Current output intensity as a float in ``[0.0, 1.0]``,
+        derived from the fixture's dim / shutter channel (``dim / 255``).
+        """
+        ...
+
     @abstractmethod
     def set(self, meta_key: str, value: Union[str, int, tuple]) -> None:
         """Set a meta-channel by label or raw value and update internal state."""
@@ -148,6 +189,8 @@ class BaseFixture(ABC):
             "beam_angle_degrees": self.beam_angle_degrees,
             "channel_count": self.channel_count,
             "absolute_channels": self.absolute_channels,
+            "color_hex": self.color_hex,
+            "intensity": self.intensity,
         }
 
     def __repr__(self) -> str:
@@ -235,6 +278,64 @@ class MovingHead(BaseFixture):
         for ch_name, offset in self.channels.items():
             buf[offset] = self._state.get(ch_name, 0)
         return buf
+
+    # ------------------------------------------------------------------
+    # Colour helpers
+    # ------------------------------------------------------------------
+
+    def _current_color_label(self) -> str:
+        """Resolve the current colour-wheel position to its label string."""
+        meta = self.meta_channels.get("color")
+        if meta is None:
+            return "White"
+        ch = meta["channel"]
+        current_byte = self._state.get(ch, 0)
+        mapping_key = meta.get("mapping", "color")
+        mapping = self.mappings.get(mapping_key, {})
+        best_label = "White"
+        best_val = -1
+        for dmx_str, label in mapping.items():
+            dmx_val = int(dmx_str)
+            if dmx_val <= current_byte and dmx_val > best_val:
+                best_val = dmx_val
+                best_label = label
+        return best_label
+
+    @property
+    def color_hex(self) -> str:
+        """Current colour as ``#RRGGBB``, derived from the colour-wheel position."""
+        return COLOR_WHEEL_HEX.get(self._current_color_label(), "#FFFFFF")
+
+    @property
+    def color_wheel_current(self) -> str:
+        """Label of the currently selected colour-wheel position (e.g. ``"Red"``)."""
+        return self._current_color_label()
+
+    @property
+    def color_wheel_options(self) -> list[str]:
+        """All colour-wheel labels in wheel order (sorted by DMX value)."""
+        meta = self.meta_channels.get("color")
+        if meta is None:
+            return []
+        mapping_key = meta.get("mapping", "color")
+        mapping = self.mappings.get(mapping_key, {})
+        return [label for _, label in sorted(mapping.items(), key=lambda x: int(x[0]))]
+
+    def to_dict(self) -> dict:
+        """Extend the base dict with colour-wheel metadata for the sidebar."""
+        d = super().to_dict()
+        d["color_wheel_options"] = self.color_wheel_options
+        d["color_wheel_current"] = self.color_wheel_current
+        return d
+
+    @property
+    def intensity(self) -> float:
+        """Dim channel (0–255) normalised to ``[0.0, 1.0]``."""
+        meta = self.meta_channels.get("dim")
+        if meta is None:
+            return 1.0
+        ch = meta["channel"]
+        return self._state.get(ch, 0) / 255.0
 
     def movement_time(
         self,
@@ -326,6 +427,27 @@ class ParCan(BaseFixture):
         for ch_name, offset in self.channels.items():
             buf[offset] = self._state.get(ch_name, 0)
         return buf
+
+    @property
+    def color_hex(self) -> str:
+        """Current colour as ``#RRGGBB`` derived from the live RGB channel bytes."""
+        meta = self.meta_channels.get("rgb")
+        if meta is None:
+            return "#000000"
+        ch_r, ch_g, ch_b = meta["channels"]
+        r = self._state.get(ch_r, 0)
+        g = self._state.get(ch_g, 0)
+        b = self._state.get(ch_b, 0)
+        return f"#{r:02X}{g:02X}{b:02X}"
+
+    @property
+    def intensity(self) -> float:
+        """Dim channel (0–255) normalised to ``[0.0, 1.0]``."""
+        meta = self.meta_channels.get("dim")
+        if meta is None:
+            return 1.0
+        ch = meta["channel"]
+        return self._state.get(ch, 0) / 255.0
 
 
 # ---------------------------------------------------------------------------

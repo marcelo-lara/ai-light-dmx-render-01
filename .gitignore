@@ -1,2 +1,7 @@
 data
 data/
+
+# graphify - knowledge graph outputs (large, regenerable, local-only)
+graphify-out/
+.graphify_*.json
+.graphify_python

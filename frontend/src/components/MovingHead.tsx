@@ -1,18 +1,20 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { RefObject } from 'react';
-import type { Fixture } from '../hooks/useFixtures';
+import type { MutableRefObject, RefObject } from 'react';
+import type { Fixture, FixtureState } from '../hooks/useFixtures';
 
 interface Props {
   fixtureData: Fixture;
   targetRef: RefObject<THREE.Mesh | null>;
-  color: string;
+  fixtureId: string;
+  fixtureStatesRef: MutableRefObject<Record<string, FixtureState>>;
 }
 
-export function MovingHead({ fixtureData, targetRef, color }: Props) {
+export function MovingHead({ fixtureData, targetRef, fixtureId, fixtureStatesRef }: Props) {
   const baseRef = useRef<THREE.Group>(null); // pan  — Y rotation
   const headRef = useRef<THREE.Group>(null); // tilt — X rotation
+  const beamMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
 
   useFrame(() => {
     if (!targetRef.current || !baseRef.current || !headRef.current) return;
@@ -41,6 +43,13 @@ export function MovingHead({ fixtureData, targetRef, color }: Props) {
       Math.PI
     );
     headRef.current.rotation.x = -tiltAngle;
+
+    // Update beam colour and opacity from live fixture state
+    const fs = fixtureStatesRef.current[fixtureId];
+    if (fs && beamMaterialRef.current) {
+      beamMaterialRef.current.color.set(fs.color_hex);
+      beamMaterialRef.current.opacity = fs.intensity * 0.6;
+    }
   });
 
   // location.x → scene X, location.z → scene Y (height), location.y → scene Z (depth)
@@ -101,7 +110,7 @@ export function MovingHead({ fixtureData, targetRef, color }: Props) {
               Math.tan((fixtureData.beam_angle_degrees / 2) * (Math.PI / 180)),
               1, 8
             ]} />
-            <meshBasicMaterial color={color} transparent opacity={0.65} />
+            <meshBasicMaterial ref={beamMaterialRef} color="#ffffff" transparent opacity={0} />
           </mesh>
         </group>
       </group>

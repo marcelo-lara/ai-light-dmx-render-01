@@ -46,13 +46,39 @@ def _load_init_data() -> dict:
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     manager: ConnectionManager = websocket.app.state.manager
+    # Build a per-connection lookup so set_fixture commands can reach fixtures
+    # that live on app.state (the same live objects the frame loop reads).
+    fixtures_by_id: dict = {
+        f.id: f for f in websocket.app.state.fixtures
+    }
     await websocket.accept()
     manager.add(websocket)
     try:
         await websocket.send_json(_load_init_data())
-        # Hold connection open; frames arrive via the broadcast loop in lifespan.
         while True:
-            await websocket.receive_text()
+            text = await websocket.receive_text()
+            try:
+                msg = json.loads(text)
+            except json.JSONDecodeError:
+                continue
+
+            if msg.get("type") == "set_fixture":
+                fixture = fixtures_by_id.get(msg.get("id"))
+                if fixture is None:
+                    continue
+                meta_key = msg.get("meta_key")
+                value = msg.get("value")
+                if meta_key is None or value is None:
+                    continue
+                # JSON arrays arrive as list; fixture.set() for rgb accepts any iterable,
+                # but we normalise to tuple for clarity.
+                if isinstance(value, list):
+                    value = tuple(value)
+                try:
+                    fixture.set(meta_key, value)
+                except (KeyError, ValueError) as exc:
+                    logger.debug("set_fixture ignored: %s", exc)
+
     except WebSocketDisconnect:
         pass
     finally:

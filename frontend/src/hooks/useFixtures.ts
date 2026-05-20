@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { MutableRefObject } from 'react';
 
 export type FixtureType = 'moving_head' | 'parcan';
@@ -11,6 +11,12 @@ export interface FixtureLocation {
 
 export type MountType = 'wall_left' | 'wall_right' | 'wall_back' | 'ceiling';
 
+/** Live colour + intensity for a single fixture, updated every frame. */
+export interface FixtureState {
+  color_hex: string;   // e.g. "#FF0000"
+  intensity: number;   // 0.0–1.0
+}
+
 export interface Fixture {
   id: string;
   name: string;
@@ -22,6 +28,12 @@ export interface Fixture {
   location: FixtureLocation;
   mount?: MountType;
   beam_angle_degrees: number;
+  color_hex: string;
+  intensity: number;
+  /** Moving-head only: colour-wheel labels in wheel order. */
+  color_wheel_options?: string[];
+  /** Moving-head only: currently selected colour-wheel label. */
+  color_wheel_current?: string;
 }
 
 export interface POI {
@@ -36,16 +48,29 @@ interface FixturesState {
   pois: POI[];
   connected: boolean;
   ballPositionRef: MutableRefObject<FixtureLocation>;
+  fixtureStatesRef: MutableRefObject<Record<string, FixtureState>>;
+  sendFixtureCommand: (id: string, metaKey: string, value: string | number | number[]) => void;
 }
 
 export function useFixtures(): FixturesState {
-  const [state, setState] = useState<Omit<FixturesState, 'ballPositionRef'>>({
+  const [state, setState] = useState<Omit<FixturesState, 'ballPositionRef' | 'fixtureStatesRef' | 'sendFixtureCommand'>>({
     fixtures: [],
     pois: [],
     connected: false,
   });
 
   const ballPositionRef = useRef<FixtureLocation>({ x: 0.5, y: 0.5, z: 0.5 });
+  const fixtureStatesRef = useRef<Record<string, FixtureState>>({});
+  const wsRef = useRef<WebSocket | null>(null);
+
+  const sendFixtureCommand = useCallback(
+    (id: string, metaKey: string, value: string | number | number[]) => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'set_fixture', id, meta_key: metaKey, value }));
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     const wsUrl = `ws://${window.location.host}/ws`;
@@ -54,6 +79,7 @@ export function useFixtures(): FixturesState {
 
     function connect() {
       ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
 
       ws.onopen = () => setState((s) => ({ ...s, connected: true }));
 
@@ -63,16 +89,29 @@ export function useFixtures(): FixturesState {
           fixtures?: Fixture[];
           pois?: POI[];
           ball?: FixtureLocation;
+          fixture_states?: Record<string, FixtureState>;
         };
         if (msg.type === 'init' && msg.fixtures && msg.pois) {
+          // Seed fixtureStatesRef from init payload (no re-render needed)
+          const initial: Record<string, FixtureState> = {};
+          for (const f of msg.fixtures) {
+            initial[f.id] = { color_hex: f.color_hex, intensity: f.intensity };
+          }
+          fixtureStatesRef.current = initial;
           setState({ fixtures: msg.fixtures, pois: msg.pois, connected: true });
-        } else if (msg.type === 'frame' && msg.ball) {
-          // Update ref without triggering a re-render — BouncingBall reads it in useFrame
-          ballPositionRef.current = msg.ball;
+        } else if (msg.type === 'frame') {
+          // Update refs without triggering a re-render
+          if (msg.ball) {
+            ballPositionRef.current = msg.ball;
+          }
+          if (msg.fixture_states) {
+            Object.assign(fixtureStatesRef.current, msg.fixture_states);
+          }
         }
       };
 
       ws.onclose = () => {
+        wsRef.current = null;
         setState((s) => ({ ...s, connected: false }));
         reconnectTimer = setTimeout(connect, 3000);
       };
@@ -88,5 +127,6 @@ export function useFixtures(): FixturesState {
     };
   }, []);
 
-  return { ...state, ballPositionRef };
+  return { ...state, ballPositionRef, fixtureStatesRef, sendFixtureCommand };
 }
+
