@@ -1,10 +1,11 @@
 import json
 import logging
+from collections.abc import Iterable
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from src.config import FIXTURES_JSON, POIS_JSON
-from src.dmx.models.fixtures import load_all as _load_fixtures
+from src.config import POIS_JSON
+from src.dmx.artnet_core import artnet_node
 from src.simulation.ball import BallSimulator, FloorBallSimulator
 
 logger = logging.getLogger(__name__)
@@ -36,12 +37,32 @@ class ConnectionManager:
                 disconnected.add(ws)
         for ws in disconnected:
             self._clients.discard(ws)
+def _serialize_settings(app) -> dict:
+    return {
+        "sim_mode": app.state.sim_mode,
+        "ball_speed": app.state.ball_speed,
+        "dmx_output_enabled": app.state.dmx_output_enabled,
+    }
 
 
-def _load_init_data() -> dict:
-    fixtures = [f.to_dict() for f in _load_fixtures(str(FIXTURES_JSON))]
+def _load_init_data_from_app(app) -> dict:
     pois = json.loads(POIS_JSON.read_text())
-    return {"type": "init", "fixtures": fixtures, "pois": pois}
+    return {
+        "type": "init",
+        "fixtures": [f.to_dict() for f in app.state.fixtures],
+        "pois": pois,
+        **_serialize_settings(app),
+    }
+
+
+def _build_universe_frame(fixtures: Iterable) -> bytearray:
+    universe = bytearray(512)
+    for fixture in fixtures:
+        start = fixture.base_channel - 1
+        data = fixture.to_dmx_buffer()
+        end = min(start + len(data), len(universe))
+        universe[start:end] = data[: end - start]
+    return universe
 
 
 @router.websocket("/ws")
@@ -55,7 +76,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
     manager.add(websocket)
     try:
-        await websocket.send_json(_load_init_data())
+        await websocket.send_json(_load_init_data_from_app(websocket.app))
         while True:
             text = await websocket.receive_text()
             try:
@@ -68,8 +89,30 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 if mode in ("3d", "floor"):
                     websocket.app.state.sim_mode = mode
                     websocket.app.state.ball = (
-                        BallSimulator() if mode == "3d" else FloorBallSimulator()
+                        BallSimulator(speed_multiplier=websocket.app.state.ball_speed)
+                        if mode == "3d"
+                        else FloorBallSimulator(speed_multiplier=websocket.app.state.ball_speed)
                     )
+                    await manager.broadcast({"type": "settings", **_serialize_settings(websocket.app)})
+                continue
+
+            if msg.get("type") == "set_ball_speed":
+                try:
+                    speed = float(msg.get("speed"))
+                except (TypeError, ValueError):
+                    continue
+                websocket.app.state.ball_speed = max(0.1, min(4.0, speed))
+                websocket.app.state.ball.set_speed_multiplier(websocket.app.state.ball_speed)
+                await manager.broadcast({"type": "settings", **_serialize_settings(websocket.app)})
+                continue
+
+            if msg.get("type") == "set_dmx_output":
+                enabled = bool(msg.get("enabled"))
+                if websocket.app.state.dmx_output_enabled and not enabled:
+                    artnet_node.send_frame(bytearray(512), universe=0, source="system")
+                websocket.app.state.dmx_output_enabled = enabled
+                artnet_node.set_output_enabled(enabled)
+                await manager.broadcast({"type": "settings", **_serialize_settings(websocket.app)})
                 continue
 
             if msg.get("type") == "set_fixture":
@@ -86,6 +129,11 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                     value = tuple(value)
                 try:
                     fixture.set(meta_key, value)
+                    artnet_node.send_frame(
+                        _build_universe_frame(websocket.app.state.fixtures),
+                        universe=0,
+                        source="sender",
+                    )
                 except (KeyError, ValueError) as exc:
                     logger.debug("set_fixture ignored: %s", exc)
 

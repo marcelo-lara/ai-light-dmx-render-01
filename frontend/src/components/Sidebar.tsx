@@ -48,6 +48,12 @@ const S = {
     borderBottom: '1px solid #16162a',
     margin: '4px 0',
   },
+  settingsBlock: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 8,
+    marginTop: 10,
+  },
   row: {
     padding: '8px 12px 10px',
     borderBottom: '1px solid #111122',
@@ -81,6 +87,21 @@ const S = {
     width: 34,
     textAlign: 'right' as const,
     flexShrink: 0,
+  },
+  checkboxRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    color: '#9999cc',
+  },
+  checkbox: {
+    accentColor: '#4466cc',
+    cursor: 'pointer',
+  },
+  note: {
+    color: '#55557a',
+    fontSize: 10,
+    lineHeight: 1.4,
   },
   select: {
     flex: 1,
@@ -202,10 +223,24 @@ interface Props {
   parcans: Fixture[];
   simMode: string;
   setSimMode: (mode: string) => void;
+  ballSpeed: number;
+  setBallSpeed: (speed: number) => void;
+  dmxOutputEnabled: boolean;
+  setDmxOutputEnabled: (enabled: boolean) => void;
   sendFixtureCommand: SendFn;
 }
 
-export function Sidebar({ movingHeads, parcans, simMode, setSimMode, sendFixtureCommand }: Props) {
+export function Sidebar({
+  movingHeads,
+  parcans,
+  simMode,
+  setSimMode,
+  ballSpeed,
+  setBallSpeed,
+  dmxOutputEnabled,
+  setDmxOutputEnabled,
+  sendFixtureCommand,
+}: Props) {
   const btnBase: React.CSSProperties = {
     flex: 1,
     padding: '5px 0',
@@ -242,6 +277,33 @@ export function Sidebar({ movingHeads, parcans, simMode, setSimMode, sendFixture
           >
             Floor Bounce
           </button>
+        </div>
+
+        <div style={S.settingsBlock}>
+          <div style={S.control}>
+            <span style={S.label}>speed</span>
+            <input
+              type="range"
+              min={0.1}
+              max={4}
+              step={0.05}
+              value={ballSpeed}
+              style={S.slider}
+              onChange={(e) => setBallSpeed(Number(e.target.value))}
+            />
+            <span style={S.valueText}>{ballSpeed.toFixed(2)}x</span>
+          </div>
+
+          <label style={S.checkboxRow}>
+            <input
+              type="checkbox"
+              checked={dmxOutputEnabled}
+              style={S.checkbox}
+              onChange={(e) => setDmxOutputEnabled(e.target.checked)}
+            />
+            <span>Send DMX to Art-Net node</span>
+          </label>
+          <div style={S.note}>Disabled by default so fixture edits stay in simulation only until you opt in.</div>
         </div>
       </div>
 

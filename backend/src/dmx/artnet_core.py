@@ -1,12 +1,15 @@
 import socket
-import struct
 import logging
 
+from src.config import ARTNET_IP, ARTNET_PORT, ARTNET_UNIVERSE
+
 class ArtNetCore:
-    def __init__(self, target_ip="<broadcast>", port=6454):
+    def __init__(self, target_ip: str = ARTNET_IP, port: int = ARTNET_PORT):
         self.target_ip = target_ip
         self.port = port
+        self.default_universe = ARTNET_UNIVERSE
         self.is_playing = False
+        self.output_enabled = False
         
         # Setup UDP Socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -22,19 +25,32 @@ class ArtNetCore:
         
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger("ArtNetCore")
+        self.logger.info("ArtNetCore target configured: %s:%s universe=%s", self.target_ip, self.port, self.default_universe)
 
     def set_playing_state(self, state: bool):
         """Locks or unlocks the socket for the Player module."""
         self.is_playing = state
         self.logger.info(f"ArtNetCore is_playing state changed to: {self.is_playing}")
 
-    def send_frame(self, dmx_data: bytearray, universe: int = 0, source: str = "sender"):
+    def set_output_enabled(self, enabled: bool):
+        """Enable or disable transmission to the physical Art-Net node."""
+        self.output_enabled = enabled
+        self.logger.info(f"ArtNetCore output_enabled changed to: {self.output_enabled}")
+
+    def send_frame(self, dmx_data: bytearray, universe: int | None = None, source: str = "sender"):
         """
         Broadcasts a DMX frame.
         Blocks 'sender' or ad-hoc requests if the player is currently running.
         """
         # 1. State Verification (The Lock)
-        if self.is_playing and source != "player":
+        if not self.output_enabled:
+            self.logger.debug("Frame dropped: physical Art-Net output is disabled.")
+            return
+
+        if universe is None:
+            universe = self.default_universe
+
+        if self.is_playing and source not in {"player", "system"}:
             # Silently drop the packet to prevent UI/API errors, 
             # but log it for debugging if needed.
             self.logger.debug("Frame dropped: Player is active. Ad-hoc updates are locked.")
@@ -53,7 +69,7 @@ class ArtNetCore:
         # 3. Assemble Dynamic Header (Universe & Length)
         # Universe [2 bytes Little Endian]
         # Length [2 bytes Big Endian]
-        dynamic_header = struct.pack('<H >H', universe, length)
+        dynamic_header = universe.to_bytes(2, byteorder='little') + length.to_bytes(2, byteorder='big')
 
         # 4. Construct Final Packet and Send
         packet = self._static_header + dynamic_header + dmx_data
