@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { MutableRefObject, RefObject } from 'react';
 import type { Fixture, FixtureState } from '../hooks/useFixtures';
+import { getBeamOpacity } from './beamVisuals';
 
 interface Props {
   fixtureData: Fixture;
@@ -54,12 +55,17 @@ export function MovingHead({ fixtureData, targetRef, fixtureId, fixtureStatesRef
       const beamOrigin = new THREE.Vector3();
       const beamDirection = new THREE.Vector3(0, -1, 0);
       const beamQuaternion = new THREE.Quaternion();
+      const beamProbeOrigin = new THREE.Vector3();
 
       headRef.current.getWorldPosition(beamOrigin);
       headRef.current.getWorldQuaternion(beamQuaternion);
       beamDirection.applyQuaternion(beamQuaternion).normalize();
 
-      const beamHit = new THREE.Ray(beamOrigin, beamDirection).intersectBox(sceneBounds, new THREE.Vector3());
+      // Wall-mounted heads can sit exactly on the room boundary; probe a hair
+      // forward so the box intersection returns the exit point, not the origin.
+      beamProbeOrigin.copy(beamOrigin).addScaledVector(beamDirection, 1e-4);
+
+      const beamHit = new THREE.Ray(beamProbeOrigin, beamDirection).intersectBox(sceneBounds, new THREE.Vector3());
       const beamLength = beamHit ? Math.max(beamOrigin.distanceTo(beamHit), 0.001) : 0.001;
 
       beamRef.current.position.set(0, -beamLength / 2, 0);
@@ -70,7 +76,7 @@ export function MovingHead({ fixtureData, targetRef, fixtureId, fixtureStatesRef
     const fs = fixtureStatesRef.current[fixtureId];
     if (fs && beamMaterialRef.current) {
       beamMaterialRef.current.color.set(fs.color_hex);
-      beamMaterialRef.current.opacity = fs.intensity * 0.6;
+      beamMaterialRef.current.opacity = getBeamOpacity(fs.color_hex, fs.intensity, 0.6);
     }
   });
 
@@ -132,7 +138,7 @@ export function MovingHead({ fixtureData, targetRef, fixtureId, fixtureStatesRef
               Math.tan((fixtureData.beam_angle_degrees / 2) * (Math.PI / 180)),
               1, 8
             ]} />
-            <meshBasicMaterial ref={beamMaterialRef} color="#ffffff" transparent opacity={0} />
+            <meshBasicMaterial ref={beamMaterialRef} color="#ffffff" transparent opacity={0} depthWrite={false} />
           </mesh>
         </group>
       </group>

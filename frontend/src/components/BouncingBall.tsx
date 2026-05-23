@@ -1,11 +1,11 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { RefObject, MutableRefObject } from 'react';
+import type { MutableRefObject } from 'react';
 import type { FixtureLocation } from '../hooks/useFixtures';
 
 interface Props {
-  meshRef: RefObject<THREE.Mesh | null>;
+  meshRef: MutableRefObject<THREE.Mesh | null>;
   ballPositionRef: MutableRefObject<FixtureLocation>;
 }
 

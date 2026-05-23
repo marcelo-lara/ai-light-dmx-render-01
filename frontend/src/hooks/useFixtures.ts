@@ -102,13 +102,21 @@ export function useFixtures(): FixturesState {
           fixture_states?: Record<string, FixtureState>;
         };
         if (msg.type === 'init' && msg.fixtures && msg.pois) {
+          const fixtures = msg.fixtures;
+          const pois = msg.pois;
+
           // Seed fixtureStatesRef from init payload (no re-render needed)
           const initial: Record<string, FixtureState> = {};
-          for (const f of msg.fixtures) {
+          for (const f of fixtures) {
             initial[f.id] = { color_hex: f.color_hex, intensity: f.intensity };
           }
           fixtureStatesRef.current = initial;
-          setState({ fixtures: msg.fixtures, pois: msg.pois, connected: true });
+          setState((s) => ({
+            ...s,
+            fixtures,
+            pois,
+            connected: true,
+          }));
         } else if (msg.type === 'frame') {
           // Update refs without triggering a re-render
           if (msg.ball) {

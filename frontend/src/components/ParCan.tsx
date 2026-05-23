@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { MutableRefObject } from 'react';
 import type { Fixture, FixtureState } from '../hooks/useFixtures';
+import { getBeamOpacity } from './beamVisuals';
 
 interface Props {
   fixtureData: Fixture;
@@ -41,7 +42,7 @@ export function ParCan({ fixtureData, fixtureId, fixtureStatesRef }: Props) {
     const fs = fixtureStatesRef.current[fixtureId];
     if (fs && beamMaterialRef.current) {
       beamMaterialRef.current.color.set(fs.color_hex);
-      beamMaterialRef.current.opacity = fs.intensity * 0.4;
+      beamMaterialRef.current.opacity = getBeamOpacity(fs.color_hex, fs.intensity, 0.4);
     }
   });
 
@@ -64,7 +65,7 @@ export function ParCan({ fixtureData, fixtureId, fixtureStatesRef }: Props) {
           mountHeight * Math.tan((fixtureData.beam_angle_degrees / 2) * (Math.PI / 180)),
           mountHeight, 10
         ]} />
-        <meshBasicMaterial ref={beamMaterialRef} color="#000000" transparent opacity={0} />
+        <meshBasicMaterial ref={beamMaterialRef} color="#000000" transparent opacity={0} depthWrite={false} />
       </mesh>
     </group>
   );
