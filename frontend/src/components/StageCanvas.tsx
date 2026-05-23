@@ -14,11 +14,12 @@ interface Props {
   movingHeads: Fixture[];
   parcans: Fixture[];
   pois: POI[];
+  activePoiId: string | null;
   ballPositionRef: MutableRefObject<FixtureLocation>;
   fixtureStatesRef: MutableRefObject<Record<string, FixtureState>>;
 }
 
-export function StageCanvas({ movingHeads, parcans, pois, ballPositionRef, fixtureStatesRef }: Props) {
+export function StageCanvas({ movingHeads, parcans, pois, activePoiId, ballPositionRef, fixtureStatesRef }: Props) {
   const ballRef = useRef<THREE.Mesh>(null);
 
   return (
@@ -43,7 +44,7 @@ export function StageCanvas({ movingHeads, parcans, pois, ballPositionRef, fixtu
       {pois
         .filter((p) => !p.id.startsWith('ref_'))
         .map((p) => (
-          <POIMarker key={p.id} poi={p} />
+          <POIMarker key={p.id} poi={p} active={p.id === activePoiId} />
         ))}
 
       {parcans.map((f) => (

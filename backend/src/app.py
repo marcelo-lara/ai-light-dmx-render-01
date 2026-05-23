@@ -10,7 +10,8 @@ from src.api.websocket import ConnectionManager
 from src.config import FIXTURES_JSON, FRAME_INTERVAL, POIS_JSON
 from src.dmx.artnet_core import artnet_node
 from src.dmx.models.fixtures import load_all as _load_fixtures
-from src.simulation.ball import BallSimulator, FloorBallSimulator
+from src.simulation.ball import create_simulator
+from src.spatial.aim import aim_to_dmx, build_aim_calibrations
 
 logger = logging.getLogger(__name__)
 
@@ -25,35 +26,6 @@ def _build_universe_frame(fixtures) -> bytearray:
     return universe
 
 
-def _interpolate_fixture_target(ball_position: dict[str, float], pois: list[dict], fixture_id: str) -> tuple[int, int] | None:
-    weighted_pan = 0.0
-    weighted_tilt = 0.0
-    total_weight = 0.0
-
-    for poi in pois:
-        target = poi.get("fixtures", {}).get(fixture_id)
-        if target is None:
-            continue
-
-        location = poi.get("location", {})
-        dx = float(location.get("x", 0.0)) - ball_position["x"]
-        dy = float(location.get("y", 0.0)) - ball_position["y"]
-        dz = float(location.get("z", 0.0)) - ball_position["z"]
-        distance_sq = dx * dx + dy * dy + dz * dz
-        if distance_sq < 1e-9:
-            return int(target["pan"]), int(target["tilt"])
-
-        weight = 1.0 / distance_sq
-        weighted_pan += int(target["pan"]) * weight
-        weighted_tilt += int(target["tilt"]) * weight
-        total_weight += weight
-
-    if total_weight == 0.0:
-        return None
-
-    return round(weighted_pan / total_weight), round(weighted_tilt / total_weight)
-
-
 def _apply_simulation_to_fixtures(app: FastAPI) -> None:
     ball_position = app.state.ball.position()
     moving_head_dim = max(64, min(255, round(96 + (ball_position["z"] * 159))))
@@ -62,11 +34,13 @@ def _apply_simulation_to_fixtures(app: FastAPI) -> None:
         if fixture.fixture_type != "moving_head":
             continue
 
-        target = _interpolate_fixture_target(ball_position, app.state.pois, fixture.id)
-        if target is not None:
-            pan, tilt = target
-            fixture.set("pan", pan)
-            fixture.set("tilt", tilt)
+        pan, tilt = aim_to_dmx(
+            fixture,
+            ball_position,
+            app.state.aim_calibrations.get(fixture.id),
+        )
+        fixture.set("pan", pan)
+        fixture.set("tilt", tilt)
 
         if fixture.has_channel("dim"):
             fixture.set("dim", moving_head_dim)
@@ -92,6 +66,7 @@ async def _frame_loop(app: FastAPI) -> None:
                 {
                     "type": "frame",
                     "ball": app.state.ball.position(),
+                    "active_poi_id": app.state.ball.active_poi_id,
                     "sim_mode": app.state.sim_mode,
                     "fixture_states": fixture_states,
                 }
@@ -104,9 +79,10 @@ async def lifespan(app: FastAPI):
     app.state.sim_mode = "3d"
     app.state.ball_speed = 1.0
     app.state.dmx_output_enabled = False
-    app.state.ball = BallSimulator(speed_multiplier=app.state.ball_speed)
     app.state.pois = json.loads(POIS_JSON.read_text())
     app.state.fixtures = _load_fixtures(str(FIXTURES_JSON))
+    app.state.aim_calibrations = build_aim_calibrations(app.state.fixtures, app.state.pois)
+    app.state.ball = create_simulator(app.state.sim_mode, app.state.ball_speed, app.state.pois)
 
     task = asyncio.create_task(_frame_loop(app))
     logger.info("Frame loop started at %d FPS", round(1 / FRAME_INTERVAL))

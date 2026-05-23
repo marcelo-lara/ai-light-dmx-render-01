@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type React from 'react';
-import type { Fixture } from '../hooks/useFixtures';
+import type { Fixture, SimMode } from '../hooks/useFixtures';
 
 type SendFn = (id: string, metaKey: string, value: string | number | number[]) => void;
 
@@ -221,8 +221,9 @@ function ParCanRow({ fixture, send }: { fixture: Fixture; send: SendFn }) {
 interface Props {
   movingHeads: Fixture[];
   parcans: Fixture[];
-  simMode: string;
-  setSimMode: (mode: string) => void;
+  simMode: SimMode;
+  activePoiId: string | null;
+  setSimMode: (mode: SimMode) => void;
   ballSpeed: number;
   setBallSpeed: (speed: number) => void;
   dmxOutputEnabled: boolean;
@@ -234,6 +235,7 @@ export function Sidebar({
   movingHeads,
   parcans,
   simMode,
+  activePoiId,
   setSimMode,
   ballSpeed,
   setBallSpeed,
@@ -277,6 +279,12 @@ export function Sidebar({
           >
             Floor Bounce
           </button>
+          <button
+            style={simMode === 'poi' ? btnActive : btnBase}
+            onClick={() => setSimMode('poi')}
+          >
+            POI Glide
+          </button>
         </div>
 
         <div style={S.settingsBlock}>
@@ -303,6 +311,9 @@ export function Sidebar({
             />
             <span>Send DMX to Art-Net node</span>
           </label>
+          {simMode === 'poi' && (
+            <div style={S.note}>Active POI: {activePoiId ?? 'loading...'}</div>
+          )}
           <div style={S.note}>Disabled by default so fixture edits stay in simulation only until you opt in.</div>
         </div>
       </div>

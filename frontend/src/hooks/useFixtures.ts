@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import type { MutableRefObject } from 'react';
 
 export type FixtureType = 'moving_head' | 'parcan';
+export type SimMode = '3d' | 'floor' | 'poi';
 
 export interface FixtureLocation {
   x: number;
@@ -47,10 +48,11 @@ interface FixturesState {
   fixtures: Fixture[];
   pois: POI[];
   connected: boolean;
-  simMode: string;
+  simMode: SimMode;
   ballSpeed: number;
   dmxOutputEnabled: boolean;
-  setSimMode: (mode: string) => void;
+  activePoiId: string | null;
+  setSimMode: (mode: SimMode) => void;
   setBallSpeed: (speed: number) => void;
   setDmxOutputEnabled: (enabled: boolean) => void;
   ballPositionRef: MutableRefObject<FixtureLocation>;
@@ -66,6 +68,7 @@ export function useFixtures(): FixturesState {
     simMode: '3d',
     ballSpeed: 1,
     dmxOutputEnabled: false,
+    activePoiId: null,
   });
 
   const ballPositionRef = useRef<FixtureLocation>({ x: 0.5, y: 0.5, z: 0.5 });
@@ -81,7 +84,7 @@ export function useFixtures(): FixturesState {
     []
   );
 
-  const setSimMode = useCallback((mode: string) => {
+  const setSimMode = useCallback((mode: SimMode) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'set_sim_mode', mode }));
       setState((s) => ({ ...s, simMode: mode }));
@@ -121,9 +124,10 @@ export function useFixtures(): FixturesState {
           pois?: POI[];
           ball?: FixtureLocation;
           fixture_states?: Record<string, FixtureState>;
-          sim_mode?: string;
+          sim_mode?: SimMode;
           ball_speed?: number;
           dmx_output_enabled?: boolean;
+          active_poi_id?: string | null;
         };
         if (msg.type === 'init' && msg.fixtures && msg.pois) {
           const fixtures = msg.fixtures;
@@ -143,6 +147,7 @@ export function useFixtures(): FixturesState {
             simMode: msg.sim_mode ?? s.simMode,
             ballSpeed: msg.ball_speed ?? s.ballSpeed,
             dmxOutputEnabled: msg.dmx_output_enabled ?? s.dmxOutputEnabled,
+            activePoiId: msg.active_poi_id ?? s.activePoiId,
           }));
         } else if (msg.type === 'settings') {
           setState((s) => ({
@@ -150,6 +155,7 @@ export function useFixtures(): FixturesState {
             simMode: msg.sim_mode ?? s.simMode,
             ballSpeed: msg.ball_speed ?? s.ballSpeed,
             dmxOutputEnabled: msg.dmx_output_enabled ?? s.dmxOutputEnabled,
+            activePoiId: msg.active_poi_id ?? s.activePoiId,
           }));
         } else if (msg.type === 'frame') {
           // Update refs without triggering a re-render
@@ -158,6 +164,15 @@ export function useFixtures(): FixturesState {
           }
           if (msg.fixture_states) {
             Object.assign(fixtureStatesRef.current, msg.fixture_states);
+          }
+          if (msg.active_poi_id !== undefined) {
+            setState((s) => {
+              const nextActivePoiId = msg.active_poi_id ?? null;
+              if (s.activePoiId === nextActivePoiId) {
+                return s;
+              }
+              return { ...s, activePoiId: nextActivePoiId };
+            });
           }
         }
       };

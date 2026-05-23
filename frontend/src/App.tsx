@@ -8,6 +8,7 @@ export function App() {
     pois,
     connected,
     simMode,
+    activePoiId,
     setSimMode,
     ballSpeed,
     setBallSpeed,
@@ -39,12 +40,13 @@ export function App() {
         </div>
       )}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <StageCanvas movingHeads={movingHeads} parcans={parcans} pois={pois} ballPositionRef={ballPositionRef} fixtureStatesRef={fixtureStatesRef} />
+        <StageCanvas movingHeads={movingHeads} parcans={parcans} pois={pois} activePoiId={activePoiId} ballPositionRef={ballPositionRef} fixtureStatesRef={fixtureStatesRef} />
       </div>
       <Sidebar
         movingHeads={movingHeads}
         parcans={parcans}
         simMode={simMode}
+        activePoiId={activePoiId}
         setSimMode={setSimMode}
         ballSpeed={ballSpeed}
         setBallSpeed={setBallSpeed}

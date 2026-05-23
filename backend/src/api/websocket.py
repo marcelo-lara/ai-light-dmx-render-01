@@ -6,7 +6,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from src.config import POIS_JSON
 from src.dmx.artnet_core import artnet_node
-from src.simulation.ball import BallSimulator, FloorBallSimulator
+from src.simulation.ball import create_simulator
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,7 @@ def _serialize_settings(app) -> dict:
         "sim_mode": app.state.sim_mode,
         "ball_speed": app.state.ball_speed,
         "dmx_output_enabled": app.state.dmx_output_enabled,
+        "active_poi_id": app.state.ball.active_poi_id,
     }
 
 
@@ -86,12 +87,12 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
             if msg.get("type") == "set_sim_mode":
                 mode = msg.get("mode")
-                if mode in ("3d", "floor"):
+                if mode in ("3d", "floor", "poi"):
                     websocket.app.state.sim_mode = mode
-                    websocket.app.state.ball = (
-                        BallSimulator(speed_multiplier=websocket.app.state.ball_speed)
-                        if mode == "3d"
-                        else FloorBallSimulator(speed_multiplier=websocket.app.state.ball_speed)
+                    websocket.app.state.ball = create_simulator(
+                        mode,
+                        websocket.app.state.ball_speed,
+                        websocket.app.state.pois,
                     )
                     await manager.broadcast({"type": "settings", **_serialize_settings(websocket.app)})
                 continue
