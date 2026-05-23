@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.api.websocket import ConnectionManager
 from src.config import FIXTURES_JSON, FRAME_INTERVAL
 from src.dmx.models.fixtures import load_all as _load_fixtures
-from src.simulation.ball import BallSimulator
+from src.simulation.ball import BallSimulator, FloorBallSimulator
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,7 @@ async def _frame_loop(app: FastAPI) -> None:
                 {
                     "type": "frame",
                     "ball": app.state.ball.position(),
+                    "sim_mode": app.state.sim_mode,
                     "fixture_states": fixture_states,
                 }
             )
@@ -34,6 +35,7 @@ async def _frame_loop(app: FastAPI) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.manager = ConnectionManager()
+    app.state.sim_mode = "3d"
     app.state.ball = BallSimulator()
     app.state.fixtures = _load_fixtures(str(FIXTURES_JSON))
 

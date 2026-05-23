@@ -14,7 +14,13 @@ interface Props {
 export function MovingHead({ fixtureData, targetRef, fixtureId, fixtureStatesRef }: Props) {
   const baseRef = useRef<THREE.Group>(null); // pan  — Y rotation
   const headRef = useRef<THREE.Group>(null); // tilt — X rotation
+  const beamRef = useRef<THREE.Mesh>(null);
   const beamMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
+
+  const sceneBounds = new THREE.Box3(
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(1, 1, 1)
+  );
 
   useFrame(() => {
     if (!targetRef.current || !baseRef.current || !headRef.current) return;
@@ -43,6 +49,22 @@ export function MovingHead({ fixtureData, targetRef, fixtureId, fixtureStatesRef
       Math.PI
     );
     headRef.current.rotation.x = -tiltAngle;
+
+    if (beamRef.current) {
+      const beamOrigin = new THREE.Vector3();
+      const beamDirection = new THREE.Vector3(0, -1, 0);
+      const beamQuaternion = new THREE.Quaternion();
+
+      headRef.current.getWorldPosition(beamOrigin);
+      headRef.current.getWorldQuaternion(beamQuaternion);
+      beamDirection.applyQuaternion(beamQuaternion).normalize();
+
+      const beamHit = new THREE.Ray(beamOrigin, beamDirection).intersectBox(sceneBounds, new THREE.Vector3());
+      const beamLength = beamHit ? Math.max(beamOrigin.distanceTo(beamHit), 0.001) : 0.001;
+
+      beamRef.current.position.set(0, -beamLength / 2, 0);
+      beamRef.current.scale.set(beamLength, beamLength, beamLength);
+    }
 
     // Update beam colour and opacity from live fixture state
     const fs = fixtureStatesRef.current[fixtureId];
@@ -104,7 +126,7 @@ export function MovingHead({ fixtureData, targetRef, fixtureId, fixtureStatesRef
           </mesh>
 
           {/* Beam — narrow at lens, expands toward floor */}
-          <mesh position={[0, -0.5, 0]}>
+          <mesh ref={beamRef} position={[0, -0.5, 0]}>
             <cylinderGeometry args={[
               0.003,
               Math.tan((fixtureData.beam_angle_degrees / 2) * (Math.PI / 180)),

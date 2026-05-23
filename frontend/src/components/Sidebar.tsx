@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type React from 'react';
 import type { Fixture } from '../hooks/useFixtures';
 
 type SendFn = (id: string, metaKey: string, value: string | number | number[]) => void;
@@ -199,12 +200,52 @@ function ParCanRow({ fixture, send }: { fixture: Fixture; send: SendFn }) {
 interface Props {
   movingHeads: Fixture[];
   parcans: Fixture[];
+  simMode: string;
+  setSimMode: (mode: string) => void;
   sendFixtureCommand: SendFn;
 }
 
-export function Sidebar({ movingHeads, parcans, sendFixtureCommand }: Props) {
+export function Sidebar({ movingHeads, parcans, simMode, setSimMode, sendFixtureCommand }: Props) {
+  const btnBase: React.CSSProperties = {
+    flex: 1,
+    padding: '5px 0',
+    border: '1px solid #2a2a44',
+    borderRadius: 3,
+    background: '#14142a',
+    color: '#9999cc',
+    fontFamily: 'monospace',
+    fontSize: 11,
+    cursor: 'pointer',
+  };
+  const btnActive: React.CSSProperties = {
+    ...btnBase,
+    background: '#22224a',
+    color: '#aaaaff',
+    border: '1px solid #4444aa',
+  };
+
   return (
     <div style={S.sidebar}>
+
+      <div style={S.section}>
+        <div style={S.sectionTitle}>Simulation</div>
+        <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+          <button
+            style={simMode === '3d' ? btnActive : btnBase}
+            onClick={() => setSimMode('3d')}
+          >
+            3D Bounce
+          </button>
+          <button
+            style={simMode === 'floor' ? btnActive : btnBase}
+            onClick={() => setSimMode('floor')}
+          >
+            Floor Bounce
+          </button>
+        </div>
+      </div>
+
+      <div style={S.divider} />
 
       <div style={S.section}>
         <div style={S.sectionTitle}>Moving Heads</div>

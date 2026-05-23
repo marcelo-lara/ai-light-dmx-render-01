@@ -47,16 +47,19 @@ interface FixturesState {
   fixtures: Fixture[];
   pois: POI[];
   connected: boolean;
+  simMode: string;
+  setSimMode: (mode: string) => void;
   ballPositionRef: MutableRefObject<FixtureLocation>;
   fixtureStatesRef: MutableRefObject<Record<string, FixtureState>>;
   sendFixtureCommand: (id: string, metaKey: string, value: string | number | number[]) => void;
 }
 
 export function useFixtures(): FixturesState {
-  const [state, setState] = useState<Omit<FixturesState, 'ballPositionRef' | 'fixtureStatesRef' | 'sendFixtureCommand'>>({
+  const [state, setState] = useState<Omit<FixturesState, 'ballPositionRef' | 'fixtureStatesRef' | 'sendFixtureCommand' | 'setSimMode'>>({
     fixtures: [],
     pois: [],
     connected: false,
+    simMode: '3d',
   });
 
   const ballPositionRef = useRef<FixtureLocation>({ x: 0.5, y: 0.5, z: 0.5 });
@@ -72,8 +75,15 @@ export function useFixtures(): FixturesState {
     []
   );
 
+  const setSimMode = useCallback((mode: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'set_sim_mode', mode }));
+      setState((s) => ({ ...s, simMode: mode }));
+    }
+  }, []);
+
   useEffect(() => {
-    const wsUrl = `ws://${window.location.host}/ws`;
+    const wsUrl = `ws://${window.location.hostname}:5141/ws`;
     let ws: WebSocket;
     let reconnectTimer: ReturnType<typeof setTimeout>;
 
@@ -127,6 +137,6 @@ export function useFixtures(): FixturesState {
     };
   }, []);
 
-  return { ...state, ballPositionRef, fixtureStatesRef, sendFixtureCommand };
+  return { ...state, ballPositionRef, fixtureStatesRef, sendFixtureCommand, setSimMode };
 }
 

@@ -32,3 +32,32 @@ class BallSimulator:
 
     def position(self) -> dict[str, float]:
         return {"x": self.x, "y": self.y, "z": self.z}
+
+
+class FloorBallSimulator:
+    """
+    Simulates a ball bouncing on the floor (z = 0), moving only in x and y.
+    """
+
+    def __init__(self) -> None:
+        self.x: float = 0.5
+        self.y: float = 0.5
+        self.z: float = 0.0
+        self._vx: float = 0.004
+        self._vy: float = 0.0031
+
+    def tick(self) -> None:
+        """Advance one frame: move in x/y, bounce off unit-square walls."""
+        self.x += self._vx
+        self.y += self._vy
+
+        if self.x <= 0.0 or self.x >= 1.0:
+            self._vx *= -1
+            self.x = max(0.0, min(1.0, self.x))
+
+        if self.y <= 0.0 or self.y >= 1.0:
+            self._vy *= -1
+            self.y = max(0.0, min(1.0, self.y))
+
+    def position(self) -> dict[str, float]:
+        return {"x": self.x, "y": self.y, "z": self.z}

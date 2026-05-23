@@ -3,7 +3,7 @@ import { StageCanvas } from './components/StageCanvas';
 import { Sidebar } from './components/Sidebar';
 
 export function App() {
-  const { fixtures, pois, connected, ballPositionRef, fixtureStatesRef, sendFixtureCommand } = useFixtures();
+  const { fixtures, pois, connected, simMode, setSimMode, ballPositionRef, fixtureStatesRef, sendFixtureCommand } = useFixtures();
   const movingHeads = fixtures.filter((f) => f.fixture_type === 'moving_head');
   const parcans = fixtures.filter((f) => f.fixture_type === 'parcan');
 
@@ -28,7 +28,7 @@ export function App() {
       <div style={{ flex: 1, minWidth: 0 }}>
         <StageCanvas movingHeads={movingHeads} parcans={parcans} pois={pois} ballPositionRef={ballPositionRef} fixtureStatesRef={fixtureStatesRef} />
       </div>
-      <Sidebar movingHeads={movingHeads} parcans={parcans} sendFixtureCommand={sendFixtureCommand} />
+      <Sidebar movingHeads={movingHeads} parcans={parcans} simMode={simMode} setSimMode={setSimMode} sendFixtureCommand={sendFixtureCommand} />
     </div>
   );
 }

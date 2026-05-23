@@ -20,9 +20,24 @@ interface Props {
 export function ParCan({ fixtureData, fixtureId, fixtureStatesRef }: Props) {
   // location.x → scene X, location.z → scene Y (mounting height), location.y → scene Z (depth)
   const { x, y: sceneZ, z: mountHeight } = fixtureData.location;
+  const beamRef = useRef<THREE.Mesh>(null);
   const beamMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const sceneBounds = new THREE.Box3(
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(1, 1, 1)
+  );
 
   useFrame(() => {
+    if (beamRef.current) {
+      const beamOrigin = new THREE.Vector3(x, mountHeight, sceneZ);
+      const beamDirection = new THREE.Vector3(0, -1, 0);
+      const beamHit = new THREE.Ray(beamOrigin, beamDirection).intersectBox(sceneBounds, new THREE.Vector3());
+      const beamLength = beamHit ? Math.max(beamOrigin.distanceTo(beamHit), 0.001) : 0.001;
+
+      beamRef.current.position.set(0, -beamLength / 2, 0);
+      beamRef.current.scale.set(beamLength, beamLength, beamLength);
+    }
+
     const fs = fixtureStatesRef.current[fixtureId];
     if (fs && beamMaterialRef.current) {
       beamMaterialRef.current.color.set(fs.color_hex);
@@ -43,7 +58,7 @@ export function ParCan({ fixtureData, fixtureId, fixtureStatesRef }: Props) {
        * Cylinder center is offset by -mountHeight/2 so the top sits at the fixture
        * and the bottom reaches the floor.
        */}
-      <mesh position={[0, -mountHeight / 2, 0]}>
+      <mesh ref={beamRef} position={[0, -mountHeight / 2, 0]}>
         <cylinderGeometry args={[
           0.025,
           mountHeight * Math.tan((fixtureData.beam_angle_degrees / 2) * (Math.PI / 180)),

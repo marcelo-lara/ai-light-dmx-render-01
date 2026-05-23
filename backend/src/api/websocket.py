@@ -5,6 +5,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from src.config import FIXTURES_JSON, POIS_JSON
 from src.dmx.models.fixtures import load_all as _load_fixtures
+from src.simulation.ball import BallSimulator, FloorBallSimulator
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,15 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             try:
                 msg = json.loads(text)
             except json.JSONDecodeError:
+                continue
+
+            if msg.get("type") == "set_sim_mode":
+                mode = msg.get("mode")
+                if mode in ("3d", "floor"):
+                    websocket.app.state.sim_mode = mode
+                    websocket.app.state.ball = (
+                        BallSimulator() if mode == "3d" else FloorBallSimulator()
+                    )
                 continue
 
             if msg.get("type") == "set_fixture":

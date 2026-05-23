@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Union
 
 from src.config import FIXTURES_JSON
@@ -511,7 +512,6 @@ def load_all(fixtures_json_path: str) -> list[BaseFixture]:
     fixtures_json_path : str
         Absolute path to ``fixtures.json``.
     """
-    from pathlib import Path
     with open(Path(fixtures_json_path)) as fh:
         instances = json.load(fh)
     return [instantiate(inst) for inst in instances]
