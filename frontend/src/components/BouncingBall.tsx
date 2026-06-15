@@ -7,12 +7,13 @@ import type { FixtureLocation } from '../hooks/useFixtures';
 interface Props {
   meshRef: MutableRefObject<THREE.Mesh | null>;
   ballPositionRef: MutableRefObject<FixtureLocation>;
+  overridePosition?: FixtureLocation | null;
 }
 
-export function BouncingBall({ meshRef, ballPositionRef }: Props) {
+export function BouncingBall({ meshRef, ballPositionRef, overridePosition = null }: Props) {
   useFrame(() => {
     if (!meshRef.current) return;
-    const { x, y, z } = ballPositionRef.current;
+    const { x, y, z } = overridePosition ?? ballPositionRef.current;
     // Remap room coords → scene coords: room.z (height) → sceneY, room.y (depth) → sceneZ
     meshRef.current.position.set(x, z, y);
   });

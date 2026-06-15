@@ -135,6 +135,14 @@ class BaseFixture(ABC):
             f"Valid labels: {list(mapping.values())}"
         )
 
+    def _u16_value(self, meta_key: str) -> int:
+        """Return the current 16-bit value for a meta channel, or ``0`` if absent."""
+        meta = self.meta_channels.get(meta_key)
+        if meta is None or meta.get("kind") != "u16":
+            return 0
+        ch_msb, ch_lsb = meta["channels"]
+        return ((self._state.get(ch_msb, 0) & 0xFF) << 8) | (self._state.get(ch_lsb, 0) & 0xFF)
+
     @property
     def channel_count(self) -> int:
         return len(self.channels)
@@ -308,6 +316,16 @@ class MovingHead(BaseFixture):
         return COLOR_WHEEL_HEX.get(self._current_color_label(), "#FFFFFF")
 
     @property
+    def pan(self) -> int:
+        """Current pan DMX value as a 16-bit integer."""
+        return self._u16_value("pan")
+
+    @property
+    def tilt(self) -> int:
+        """Current tilt DMX value as a 16-bit integer."""
+        return self._u16_value("tilt")
+
+    @property
     def color_wheel_current(self) -> str:
         """Label of the currently selected colour-wheel position (e.g. ``"Red"``)."""
         return self._current_color_label()
@@ -327,6 +345,8 @@ class MovingHead(BaseFixture):
         d = super().to_dict()
         d["color_wheel_options"] = self.color_wheel_options
         d["color_wheel_current"] = self.color_wheel_current
+        d["pan"] = self.pan
+        d["tilt"] = self.tilt
         return d
 
     @property

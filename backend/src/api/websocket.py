@@ -37,23 +37,54 @@ class ConnectionManager:
                 disconnected.add(ws)
         for ws in disconnected:
             self._clients.discard(ws)
+
+
 def _serialize_settings(app) -> dict:
     return {
         "sim_mode": app.state.sim_mode,
         "ball_speed": app.state.ball_speed,
+        "automation_enabled": app.state.automation_enabled,
         "dmx_output_enabled": app.state.dmx_output_enabled,
         "active_poi_id": app.state.ball.active_poi_id,
     }
 
 
 def _load_init_data_from_app(app) -> dict:
-    pois = json.loads(POIS_JSON.read_text())
     return {
         "type": "init",
         "fixtures": [f.to_dict() for f in app.state.fixtures],
-        "pois": pois,
+        "pois": app.state.pois,
         **_serialize_settings(app),
     }
+
+
+def _persist_poi_targets(app, poi_id: str, fixture_targets: dict[str, dict[str, int]]) -> list[dict] | None:
+    updated = False
+    next_pois: list[dict] = []
+
+    for poi in app.state.pois:
+        if poi.get("id") != poi_id:
+            next_poi = poi
+        else:
+            current_targets = dict(poi.get("fixtures", {}))
+            for fixture_id, target in fixture_targets.items():
+                current_targets[fixture_id] = {
+                    "pan": int(target["pan"]),
+                    "tilt": int(target["tilt"]),
+                }
+            next_poi = {
+                **poi,
+                "fixtures": current_targets,
+            }
+            updated = True
+        next_pois.append(next_poi)
+
+    if not updated:
+        return None
+
+    app.state.pois = next_pois
+    POIS_JSON.write_text(json.dumps(next_pois, indent=4) + "\n")
+    return next_pois
 
 
 def _build_universe_frame(fixtures: Iterable) -> bytearray:
@@ -107,6 +138,11 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 await manager.broadcast({"type": "settings", **_serialize_settings(websocket.app)})
                 continue
 
+            if msg.get("type") == "set_automation_enabled":
+                websocket.app.state.automation_enabled = bool(msg.get("enabled"))
+                await manager.broadcast({"type": "settings", **_serialize_settings(websocket.app)})
+                continue
+
             if msg.get("type") == "set_dmx_output":
                 enabled = bool(msg.get("enabled"))
                 if websocket.app.state.dmx_output_enabled and not enabled:
@@ -137,6 +173,21 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                     )
                 except (KeyError, ValueError) as exc:
                     logger.debug("set_fixture ignored: %s", exc)
+                continue
+
+            if msg.get("type") == "save_poi_targets":
+                poi_id = msg.get("poi_id")
+                fixture_targets = msg.get("fixture_targets")
+                if not isinstance(poi_id, str) or not isinstance(fixture_targets, dict):
+                    continue
+                try:
+                    persisted_pois = _persist_poi_targets(websocket.app, poi_id, fixture_targets)
+                except (TypeError, ValueError, KeyError) as exc:
+                    logger.debug("save_poi_targets ignored: %s", exc)
+                    continue
+                if persisted_pois is not None:
+                    await manager.broadcast({"type": "pois_updated", "pois": persisted_pois})
+                continue
 
     except WebSocketDisconnect:
         pass

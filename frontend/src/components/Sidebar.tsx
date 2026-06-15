@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type React from 'react';
 import type { Fixture, SimMode } from '../hooks/useFixtures';
 
@@ -88,6 +88,12 @@ const S = {
     textAlign: 'right' as const,
     flexShrink: 0,
   },
+  valueWideText: {
+    color: '#5566aa',
+    width: 46,
+    textAlign: 'right' as const,
+    flexShrink: 0,
+  },
   checkboxRow: {
     display: 'flex',
     alignItems: 'center',
@@ -140,6 +146,16 @@ function MovingHeadRow({ fixture, send }: { fixture: Fixture; send: SendFn }) {
   const [colorLabel, setColorLabel] = useState(
     fixture.color_wheel_current ?? fixture.color_wheel_options?.[0] ?? 'White'
   );
+  const [pan, setPan] = useState(fixture.pan ?? 0);
+  const [tilt, setTilt] = useState(fixture.tilt ?? 0);
+
+  useEffect(() => {
+    setPan(fixture.pan ?? 0);
+  }, [fixture.pan]);
+
+  useEffect(() => {
+    setTilt(fixture.tilt ?? 0);
+  }, [fixture.tilt]);
 
   return (
     <div style={S.row}>
@@ -176,6 +192,40 @@ function MovingHeadRow({ fixture, send }: { fixture: Fixture; send: SendFn }) {
             <option key={opt} value={opt}>{opt}</option>
           ))}
         </select>
+      </div>
+
+      <div style={S.control}>
+        <span style={S.label}>pan</span>
+        <input
+          type="range"
+          min={0}
+          max={65535}
+          value={pan}
+          style={S.slider}
+          onChange={(e) => {
+            const value = Number(e.target.value);
+            setPan(value);
+            send(fixture.id, 'pan', value);
+          }}
+        />
+        <span style={S.valueWideText}>{pan}</span>
+      </div>
+
+      <div style={S.control}>
+        <span style={S.label}>tilt</span>
+        <input
+          type="range"
+          min={0}
+          max={65535}
+          value={tilt}
+          style={S.slider}
+          onChange={(e) => {
+            const value = Number(e.target.value);
+            setTilt(value);
+            send(fixture.id, 'tilt', value);
+          }}
+        />
+        <span style={S.valueWideText}>{tilt}</span>
       </div>
     </div>
   );
@@ -223,9 +273,18 @@ interface Props {
   parcans: Fixture[];
   simMode: SimMode;
   activePoiId: string | null;
+  selectedTargetLabel: string | null;
+  selectedTargetDirty: boolean;
+  persistSelectedTarget: () => void;
+  showPois: boolean;
+  setShowPois: (show: boolean) => void;
+  showRefs: boolean;
+  setShowRefs: (show: boolean) => void;
   setSimMode: (mode: SimMode) => void;
   ballSpeed: number;
   setBallSpeed: (speed: number) => void;
+  automationEnabled: boolean;
+  setAutomationEnabled: (enabled: boolean) => void;
   dmxOutputEnabled: boolean;
   setDmxOutputEnabled: (enabled: boolean) => void;
   sendFixtureCommand: SendFn;
@@ -236,9 +295,18 @@ export function Sidebar({
   parcans,
   simMode,
   activePoiId,
+  selectedTargetLabel,
+  selectedTargetDirty,
+  persistSelectedTarget,
+  showPois,
+  setShowPois,
+  showRefs,
+  setShowRefs,
   setSimMode,
   ballSpeed,
   setBallSpeed,
+  automationEnabled,
+  setAutomationEnabled,
   dmxOutputEnabled,
   setDmxOutputEnabled,
   sendFixtureCommand,
@@ -260,9 +328,40 @@ export function Sidebar({
     color: '#aaaaff',
     border: '1px solid #4444aa',
   };
+  const btnDisabled: React.CSSProperties = {
+    ...btnBase,
+    opacity: 0.55,
+    cursor: 'default',
+  };
 
   return (
     <div style={S.sidebar}>
+
+      <div style={S.section}>
+        <div style={S.sectionTitle}>Overlays</div>
+        <div style={S.settingsBlock}>
+          <label style={S.checkboxRow}>
+            <input
+              type="checkbox"
+              checked={showPois}
+              style={S.checkbox}
+              onChange={(e) => setShowPois(e.target.checked)}
+            />
+            <span>Show POIs</span>
+          </label>
+          <label style={S.checkboxRow}>
+            <input
+              type="checkbox"
+              checked={showRefs}
+              style={S.checkbox}
+              onChange={(e) => setShowRefs(e.target.checked)}
+            />
+            <span>Show REFs</span>
+          </label>
+        </div>
+      </div>
+
+      <div style={S.divider} />
 
       <div style={S.section}>
         <div style={S.sectionTitle}>Simulation</div>
@@ -301,6 +400,23 @@ export function Sidebar({
             />
             <span style={S.valueText}>{ballSpeed.toFixed(2)}x</span>
           </div>
+
+          <button
+            style={automationEnabled ? btnActive : btnBase}
+            onClick={() => setAutomationEnabled(!automationEnabled)}
+          >
+            {automationEnabled ? 'Stop Automation' : 'Play Automation'}
+          </button>
+
+          <div style={S.note}>Selected target: {selectedTargetLabel ?? 'none'}</div>
+
+          <button
+            style={selectedTargetDirty ? btnActive : btnDisabled}
+            disabled={!selectedTargetDirty}
+            onClick={persistSelectedTarget}
+          >
+            Update Values
+          </button>
 
           <label style={S.checkboxRow}>
             <input

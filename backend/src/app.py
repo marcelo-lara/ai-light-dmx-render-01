@@ -48,8 +48,9 @@ def _apply_simulation_to_fixtures(app: FastAPI) -> None:
 async def _frame_loop(app: FastAPI) -> None:
     while True:
         await asyncio.sleep(FRAME_INTERVAL)
-        app.state.ball.tick()
-        _apply_simulation_to_fixtures(app)
+        if app.state.automation_enabled:
+            app.state.ball.tick()
+            _apply_simulation_to_fixtures(app)
 
         artnet_node.send_frame(
             _build_universe_frame(app.state.fixtures),
@@ -77,6 +78,7 @@ async def lifespan(app: FastAPI):
     app.state.manager = ConnectionManager()
     app.state.sim_mode = "3d"
     app.state.ball_speed = 1.0
+    app.state.automation_enabled = True
     app.state.dmx_output_enabled = False
     app.state.pois = json.loads(POIS_JSON.read_text())
     app.state.fixtures = _load_fixtures(str(FIXTURES_JSON))

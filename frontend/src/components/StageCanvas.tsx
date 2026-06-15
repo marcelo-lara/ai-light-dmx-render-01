@@ -15,12 +15,20 @@ interface Props {
   parcans: Fixture[];
   pois: POI[];
   activePoiId: string | null;
+  showPois: boolean;
+  showRefs: boolean;
+  targetLocation: FixtureLocation | null;
+  onSelectPoi: (poi: POI) => void;
   ballPositionRef: MutableRefObject<FixtureLocation>;
   fixtureStatesRef: MutableRefObject<Record<string, FixtureState>>;
 }
 
-export function StageCanvas({ movingHeads, parcans, pois, activePoiId, ballPositionRef, fixtureStatesRef }: Props) {
+export function StageCanvas({ movingHeads, parcans, pois, activePoiId, showPois, showRefs, targetLocation, onSelectPoi, ballPositionRef, fixtureStatesRef }: Props) {
   const ballRef = useRef<THREE.Mesh>(null);
+  const visiblePois = pois.filter((poi) => {
+    const isRef = poi.id.startsWith('ref_');
+    return (showPois && !isRef) || (showRefs && isRef);
+  });
 
   return (
     <Canvas
@@ -39,13 +47,11 @@ export function StageCanvas({ movingHeads, parcans, pois, activePoiId, ballPosit
       />
 
       <BoundingBox />
-      <BouncingBall meshRef={ballRef} ballPositionRef={ballPositionRef} />
+      <BouncingBall meshRef={ballRef} ballPositionRef={ballPositionRef} overridePosition={targetLocation} />
 
-      {pois
-        .filter((p) => !p.id.startsWith('ref_'))
-        .map((p) => (
-          <POIMarker key={p.id} poi={p} active={p.id === activePoiId} />
-        ))}
+      {visiblePois.map((p) => (
+        <POIMarker key={p.id} poi={p} active={p.id === activePoiId} onSelect={onSelectPoi} />
+      ))}
 
       {parcans.map((f) => (
         <ParCan
