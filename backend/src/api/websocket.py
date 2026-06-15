@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from src.dmx.artnet_core import artnet_node
-from src.poi_store import persist_pois
+from src.poi_store import persist_pois, persist_ref_coordinates
 from src.simulation.ball import create_simulator
 
 logger = logging.getLogger(__name__)
@@ -53,38 +53,52 @@ def _load_init_data_from_app(app) -> dict:
     return {
         "type": "init",
         "fixtures": [f.to_dict() for f in app.state.fixtures],
-        "pois": app.state.pois,
+        "pois": [*app.state.pois, *app.state.ref_pois],
         **_serialize_settings(app),
     }
 
 
 def _persist_poi_targets(app, poi_id: str, fixture_targets: dict[str, dict[str, int]]) -> list[dict] | None:
-    updated = False
-    next_pois: list[dict] = []
+    target_collection_name = None
+    persisted_collection = None
 
-    for poi in app.state.pois:
-        if poi.get("id") != poi_id:
-            next_poi = poi
-        else:
-            current_targets = dict(poi.get("fixtures", {}))
-            for fixture_id, target in fixture_targets.items():
-                current_targets[fixture_id] = {
-                    "pan": int(target["pan"]),
-                    "tilt": int(target["tilt"]),
+    for collection_name in ("pois", "ref_pois"):
+        collection = getattr(app.state, collection_name)
+        updated = False
+        next_pois: list[dict] = []
+
+        for poi in collection:
+            if poi.get("id") != poi_id:
+                next_poi = poi
+            else:
+                current_targets = dict(poi.get("fixtures", {}))
+                for fixture_id, target in fixture_targets.items():
+                    current_targets[fixture_id] = {
+                        "pan": int(target["pan"]),
+                        "tilt": int(target["tilt"]),
+                    }
+                next_poi = {
+                    **poi,
+                    "fixtures": current_targets,
                 }
-            next_poi = {
-                **poi,
-                "fixtures": current_targets,
-            }
-            updated = True
-        next_pois.append(next_poi)
+                updated = True
+            next_pois.append(next_poi)
 
-    if not updated:
+        if updated:
+            setattr(app.state, collection_name, next_pois)
+            target_collection_name = collection_name
+            persisted_collection = next_pois
+            break
+
+    if target_collection_name is None or persisted_collection is None:
         return None
 
-    app.state.pois = next_pois
-    persist_pois(next_pois)
-    return next_pois
+    if target_collection_name == "pois":
+        persist_pois(persisted_collection)
+    else:
+        persist_ref_coordinates(persisted_collection)
+
+    return [*app.state.pois, *app.state.ref_pois]
 
 
 def _build_universe_frame(fixtures: Iterable) -> bytearray:

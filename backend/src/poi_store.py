@@ -32,3 +32,10 @@ def load_all_pois(
 
 def persist_pois(pois: list[dict[str, Any]], path: Path = POIS_JSON) -> None:
     path.write_text(json.dumps(pois, indent=4) + "\n", encoding="utf-8")
+
+
+def persist_ref_coordinates(
+    ref_coordinates: list[dict[str, Any]],
+    path: Path = REF_COORDINATES_JSON,
+) -> None:
+    path.write_text(json.dumps(ref_coordinates, indent=4) + "\n", encoding="utf-8")
