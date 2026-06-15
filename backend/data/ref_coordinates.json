@@ -105,8 +105,8 @@
                 "tilt": 16640
             },
             "head_el150": {
-                "pan": 57645,
-                "tilt": 27018
+                "pan": 30665,
+                "tilt": 21984
             },
             "mini_beam_prism_r": {
                 "pan": 56347,
@@ -128,12 +128,12 @@
                 "tilt": 0
             },
             "head_el150": {
-                "pan": 52269,
-                "tilt": 42936
+                "pan": 36465,
+                "tilt": 37607
             },
             "mini_beam_prism_r": {
-                "pan": 38188,
-                "tilt": 23000
+                "pan": 56634,
+                "tilt": 17913
             }
         }
     },
@@ -147,16 +147,16 @@
         },
         "fixtures": {
             "mini_beam_prism_l": {
-                "pan": 58637,
-                "tilt": 128
+                "pan": 59672,
+                "tilt": 0
             },
             "head_el150": {
-                "pan": 58797,
-                "tilt": 27018
+                "pan": 60198,
+                "tilt": 0
             },
             "mini_beam_prism_r": {
-                "pan": 29188,
-                "tilt": 26061
+                "pan": 28246,
+                "tilt": 24413
             }
         }
     },
@@ -171,15 +171,15 @@
         "fixtures": {
             "mini_beam_prism_l": {
                 "pan": 58637,
-                "tilt": 128
+                "tilt": 25527
             },
             "head_el150": {
-                "pan": 58797,
-                "tilt": 27018
+                "pan": 30973,
+                "tilt": 0
             },
             "mini_beam_prism_r": {
-                "pan": 29188,
-                "tilt": 26061
+                "pan": 29323,
+                "tilt": 1087
             }
         }
     }
