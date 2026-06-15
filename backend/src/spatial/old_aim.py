@@ -3,7 +3,8 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
-from typing import Mapping, Sequence, Protocol
+from typing import Mapping, Sequence
+
 
 _REF_POI_ID_RE = re.compile(r"^ref_\d+_\d+_\d+$")
 
@@ -24,19 +25,19 @@ class AimCalibration:
 
 
 def is_ref_poi_id(poi_id: str) -> bool:
-    if poi_id == "table_center":
-        return True
     return bool(_REF_POI_ID_RE.fullmatch(poi_id))
 
 
-def _reference_pois(pois: Sequence[Mapping[str, object]]) -> list[Mapping[str, object]]:
+def _reference_pois(pois: Sequence[Mapping[str, object]]) -> list[Mapping[str, o
+bject]]:
     ref_pois = [poi for poi in pois if is_ref_poi_id(str(poi.get("id", "")))]
     if not ref_pois:
         raise ValueError("No ref_*_*_* POIs found for calibration.")
     return ref_pois
 
 
-def _split_location(location: Mapping[str, float]) -> tuple[float, float, float]:
+def _split_location(location: Mapping[str, float]) -> tuple[float, float, float]
+:
     return float(location["x"]), float(location["y"]), float(location["z"])
 
 
@@ -77,7 +78,8 @@ def geometry_angles(
     target_location: Mapping[str, float],
     mount: str | None,
 ) -> tuple[float, float]:
-    return _pan_angle_for_mount(fixture_location, target_location, mount), _tilt_angle(
+    return _pan_angle_for_mount(fixture_location, target_location, mount), _tilt
+_angle(
         fixture_location,
         target_location,
     )
@@ -100,12 +102,14 @@ def _fit_affine(samples: Sequence[tuple[float, float]]) -> tuple[float, float]:
     return slope, intercept
 
 
-def _solve_3x3(matrix: list[list[float]], vector: list[float]) -> tuple[float, float, float] | None:
+def _solve_3x3(matrix: list[list[float]], vector: list[float]) -> tuple[float, f
+loat, float] | None:
     # Small Gaussian elimination solver with partial pivoting.
     aug = [row[:] + [vector[idx]] for idx, row in enumerate(matrix)]
 
     for pivot_col in range(3):
-        pivot_row = max(range(pivot_col, 3), key=lambda r: abs(aug[r][pivot_col]))
+        pivot_row = max(range(pivot_col, 3), key=lambda r: abs(aug[r][pivot_col]
+))
         if abs(aug[pivot_row][pivot_col]) <= 1e-12:
             return None
         if pivot_row != pivot_col:
@@ -162,7 +166,8 @@ def _wrap_to_reference(angle: float, reference: float) -> float:
     return angle + (round((reference - angle) / period) * period)
 
 
-def _wrapped_samples(samples: Sequence[tuple[float, float]]) -> tuple[list[tuple[float, float]], float]:
+def _wrapped_samples(samples: Sequence[tuple[float, float]]) -> tuple[list[tuple
+[float, float]], float]:
     if not samples:
         return [], 0.0
 
@@ -180,7 +185,8 @@ def _predict_axis(axis: AxisCalibration, angle: float) -> float:
         mapped_angle = _wrap_to_reference(angle, axis.wrap_center)
 
     if axis.model == "quadratic":
-        return (axis.quadratic * mapped_angle * mapped_angle) + (axis.slope * mapped_angle) + axis.intercept
+        return (axis.quadratic * mapped_angle * mapped_angle) + (axis.slope * ma
+pped_angle) + axis.intercept
 
     return (axis.slope * mapped_angle) + axis.intercept
 
@@ -213,7 +219,8 @@ def _axis_error_key(
     vector_mae = 0.0
     if vectors:
         vector_errors = [
-            abs(((_predict_axis(model, x2) - _predict_axis(model, x1)) - (y2 - y1)))
+            abs(((_predict_axis(model, x2) - _predict_axis(model, x1)) - (y2 - y
+1)))
             for x1, y1, x2, y2 in vectors
         ]
         vector_mae = sum(vector_errors) / len(vector_errors)
@@ -233,7 +240,8 @@ def _choose_axis_model(
     allow_wrapped_affine: bool,
 ) -> AxisCalibration:
     if len(samples) < 2:
-        raise ValueError("At least two samples are required to choose an axis model.")
+        raise ValueError("At least two samples are required to choose an axis mo
+del.")
 
     vectors = _pairwise_vector_samples(samples)
 
@@ -271,7 +279,8 @@ def _choose_axis_model(
                 )
             )
 
-    return min(candidates, key=lambda model: _axis_error_key(model, samples, vectors))
+    return min(candidates, key=lambda model: _axis_error_key(model, samples, vec
+tors))
 
 
 def build_fixture_aim_calibration(
@@ -279,7 +288,8 @@ def build_fixture_aim_calibration(
     pois: Sequence[Mapping[str, object]],
 ) -> AimCalibration:
     if getattr(fixture, "fixture_type", None) != "moving_head":
-        raise ValueError(f"Fixture {getattr(fixture, 'id', '<unknown>')} is not a moving head.")
+        raise ValueError(f"Fixture {getattr(fixture, 'id', '<unknown>')} is not 
+a moving head.")
 
     pan_samples: list[tuple[float, float]] = []
     tilt_samples: list[tuple[float, float]] = []
@@ -307,11 +317,13 @@ def build_fixture_aim_calibration(
 
     if len(pan_samples) < 2:
         raise ValueError(
-            f"Fixture {fixture.id} has insufficient ref pan samples: {len(pan_samples)}"
+            f"Fixture {fixture.id} has insufficient ref pan samples: {len(pan_sa
+mples)}"
         )
     if len(tilt_samples) < 2:
         raise ValueError(
-            f"Fixture {fixture.id} has insufficient ref tilt samples: {len(tilt_samples)}"
+            f"Fixture {fixture.id} has insufficient ref tilt samples: {len(tilt_
+samples)}"
         )
 
     pan_axis = _choose_axis_model(
@@ -328,145 +340,33 @@ def build_fixture_aim_calibration(
         tilt=tilt_axis,
     )
 
-class CalculationStrategy(Protocol):
-    @property
-    def name(self) -> str:
-        ...
 
-    def calibrate(self, fixture, ref_pois: Sequence[Mapping[str, object]]) -> None:
-        ...
+def build_aim_calibrations(
+    fixtures,
+    pois: Sequence[Mapping[str, object]],
+) -> dict[str, AimCalibration]:
+    calibrations: dict[str, AimCalibration] = {}
+    ref_pois = _reference_pois(pois)
 
-    def aim_to_dmx(self, fixture, target_location: Mapping[str, float]) -> tuple[int, int]:
-        ...
-
-class InverseKinematicsStrategy:
-    def __init__(self):
-        self._name = "Inverse Kinematics (Trigonometry)"
-        self.calibrations = {}
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    def calibrate(self, fixture, ref_pois: Sequence[Mapping[str, object]]) -> None:
+    for fixture in fixtures:
         if getattr(fixture, "fixture_type", None) != "moving_head":
-            return
-        try:
-            cal = build_fixture_aim_calibration(fixture, ref_pois)
-            self.calibrations[fixture.id] = cal
-        except ValueError:
-            pass
+            continue
 
-    def aim_to_dmx(self, fixture, target_location: Mapping[str, float]) -> tuple[int, int]:
-        if fixture.id not in self.calibrations:
-            return 32768, 32768
-            
-        cal = self.calibrations[fixture.id]
-        pan_angle, tilt_angle = geometry_angles(fixture.location, target_location, getattr(fixture, "mount", None))
-
-        pan_value = round(_predict_axis(cal.pan, pan_angle))
-        tilt_value = round(_predict_axis(cal.tilt, tilt_angle))
-
-        return max(0, min(65535, pan_value)), max(0, min(65535, tilt_value))
-
-class TrilinearInterpolationStrategy:
-    def __init__(self):
-        self._name = "Trilinear Interpolation"
-        self.corners = {} # fixture.id -> dict of (x,y,z) -> (pan, tilt)
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    def calibrate(self, fixture, ref_pois: Sequence[Mapping[str, object]]) -> None:
-        if getattr(fixture, "fixture_type", None) != "moving_head":
-            return
-            
-        corners = {}
-        self.center_offset = getattr(self, "center_offset", {})
-        table_center_poi = None
-        for poi in ref_pois:
-            if poi.get("id") == "table_center":
-                table_center_poi = poi
-                continue
-            loc = poi.get("location", {})
-            x, y, z = round(loc.get("x", 0)), round(loc.get("y", 0)), round(loc.get("z", 0))
-            if "fixtures" in poi and fixture.id in poi["fixtures"]:
-                target = poi["fixtures"][fixture.id]
-                corners[(x, y, z)] = (target["pan"], target["tilt"])
-                
-        # Fill missing ref_1_0_1 if 0,0,1 and 1,0,0 and 0,0,0 exist
-        if (1,0,1) not in corners and (0,0,1) in corners and (1,0,0) in corners and (0,0,0) in corners:
-            corners[(1,0,1)] = (
-                corners[(0,0,1)][0] + corners[(1,0,0)][0] - corners[(0,0,0)][0],
-                corners[(0,0,1)][1] + corners[(1,0,0)][1] - corners[(0,0,0)][1]
-            )
-            
-        self.corners[fixture.id] = corners
-        
-        if table_center_poi and "fixtures" in table_center_poi and fixture.id in table_center_poi["fixtures"]:
-            target = table_center_poi["fixtures"][fixture.id]
-            calc_pan, calc_tilt = self.aim_to_dmx(fixture, table_center_poi.get("location", {}))
-            self.center_offset[fixture.id] = (
-                target["pan"] - calc_pan,
-                target["tilt"] - calc_tilt
-            )
-
-
-    def aim_to_dmx(self, fixture, target_location: Mapping[str, float]) -> tuple[int, int]:
-        corners = self.corners.get(fixture.id, {})
-        if len(corners) < 8:
-            return 32768, 32768 # Not enough corners
-            
-        x = max(0.0, min(1.0, float(target_location.get("x", 0))))
-        y = max(0.0, min(1.0, float(target_location.get("y", 0))))
-        z = max(0.0, min(1.0, float(target_location.get("z", 0))))
-
-        def interpolate(c000, c100, c010, c110, c001, c101, c011, c111):
-            c00 = c000 * (1 - x) + c100 * x
-            c01 = c001 * (1 - x) + c101 * x
-            c10 = c010 * (1 - x) + c110 * x
-            c11 = c011 * (1 - x) + c111 * x
-
-            c0 = c00 * (1 - y) + c10 * y
-            c1 = c01 * (1 - y) + c11 * y
-
-            return c0 * (1 - z) + c1 * z
-
-        pan = interpolate(
-            corners[(0,0,0)][0], corners[(1,0,0)][0], corners[(0,1,0)][0], corners[(1,1,0)][0],
-            corners[(0,0,1)][0], corners[(1,0,1)][0], corners[(0,1,1)][0], corners[(1,1,1)][0]
+        calibration = build_fixture_aim_calibration(
+            fixture,
+            ref_pois,
         )
-        tilt = interpolate(
-            corners[(0,0,0)][1], corners[(1,0,0)][1], corners[(0,1,0)][1], corners[(1,1,0)][1],
-            corners[(0,0,1)][1], corners[(1,0,1)][1], corners[(0,1,1)][1], corners[(1,1,1)][1]
-        )
-        
-        offset_pan, offset_tilt = getattr(self, "center_offset", {}).get(fixture.id, (0, 0))
+        calibrations[fixture.id] = calibration
 
-        dist = ((x - 0.49)**2 + (y - 0.52)**2 + (z - 0.15)**2) ** 0.5
-        weight = max(0, 1 - (dist / 1.0)) # linear falloff or just fixed if close enough?
-        
-        pan += offset_pan * weight
-        tilt += offset_tilt * weight
-
-        return max(0, min(65535, round(pan))), max(0, min(65535, round(tilt)))
-
-# Legacy helper implementations that aim.py used to expose publicly
-def build_aim_calibrations(fixtures, pois):
-    calibrations = {}
-    ref_pois_list = _reference_pois(pois)
-    for fix in fixtures:
-        if getattr(fix, "fixture_type", None) == "moving_head":
-            try:
-                calibrations[fix.id] = build_fixture_aim_calibration(fix, ref_pois_list)
-            except ValueError:
-                pass
     return calibrations
 
-def aim_to_dmx(fixture, target_location, calibration):
-    pan_angle, tilt_angle = geometry_angles(fixture.location, target_location, fixture.mount)
+
+def aim_to_dmx(fixture, target_location: Mapping[str, float], calibration: AimCa
+libration) -> tuple[int, int]:
+    pan_angle, tilt_angle = geometry_angles(fixture.location, target_location, f
+ixture.mount)
+
     pan_value = round(_predict_axis(calibration.pan, pan_angle))
     tilt_value = round(_predict_axis(calibration.tilt, tilt_angle))
-    return max(0, min(65535, pan_value)), max(0, min(65535, tilt_value))
 
+    return max(0, min(65535, pan_value)), max(0, min(65535, tilt_value))darkange

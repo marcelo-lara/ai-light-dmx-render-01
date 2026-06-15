@@ -2,7 +2,7 @@ services:
   backend:
     build: ./backend
     volumes:
-      - /home/darkangel/ai-light-song-v2/data/fixtures:/app/fixtures:ro
+      - ./data/fixtures:/app/fixtures:ro
     ports:
       - "5141:5141"
 

@@ -11,7 +11,7 @@ from src.config import FIXTURES_JSON, FRAME_INTERVAL, POIS_JSON
 from src.dmx.artnet_core import artnet_node
 from src.dmx.models.fixtures import load_all as _load_fixtures
 from src.simulation.ball import create_simulator
-from src.spatial.aim import aim_to_dmx, build_aim_calibrations
+from src.spatial.aim import TrilinearInterpolationStrategy, is_ref_poi_id
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +34,9 @@ def _apply_simulation_to_fixtures(app: FastAPI) -> None:
         if fixture.fixture_type != "moving_head":
             continue
 
-        pan, tilt = aim_to_dmx(
+        pan, tilt = app.state.aim_strategy.aim_to_dmx(
             fixture,
             ball_position,
-            app.state.aim_calibrations.get(fixture.id),
         )
         fixture.set("pan", pan)
         fixture.set("tilt", tilt)
@@ -81,8 +80,15 @@ async def lifespan(app: FastAPI):
     app.state.dmx_output_enabled = False
     app.state.pois = json.loads(POIS_JSON.read_text())
     app.state.fixtures = _load_fixtures(str(FIXTURES_JSON))
-    app.state.aim_calibrations = build_aim_calibrations(app.state.fixtures, app.state.pois)
-    app.state.ball = create_simulator(app.state.sim_mode, app.state.ball_speed, app.state.pois)
+    
+    app.state.aim_strategy = TrilinearInterpolationStrategy()
+    ref_pois = [p for p in app.state.pois if is_ref_poi_id(p.get("id", ""))]
+    for fixture in app.state.fixtures:
+        if fixture.fixture_type == "moving_head":
+            app.state.aim_strategy.calibrate(fixture, ref_pois)
+
+    app.state.ball = create_simulator(app.state.sim_mode, app.state.ball_speed, 
+app.state.pois)
 
     task = asyncio.create_task(_frame_loop(app))
     logger.info("Frame loop started at %d FPS", round(1 / FRAME_INTERVAL))

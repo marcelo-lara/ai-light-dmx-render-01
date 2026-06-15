@@ -102,6 +102,66 @@ The new calibration path is physically better than POI interpolation, but real f
 - Trim values survive container restart.
 - Zero trims reproduce the current behavior exactly.
 
+## 3. Manual Fixture Calibration Helper
+
+### Goal
+
+Provide a guided helper that estimates fixture position and orientation in the rig from operator-driven manual aiming captures, then proposes updates for `fixtures.json`.
+
+### Problem To Solve
+
+Mount labels (`wall_left`, `wall_right`, `wall_back`) are useful coarse orientation hints, but physical placement and orientation offsets differ per fixture. Manual aiming captures should be convertible into stable pose estimates.
+
+### Expected Behavior
+
+- Operator selects a fixture and enters calibration mode.
+- UI prompts a sequence of known target points (`x,y,z`) and asks the operator to manually aim to each point.
+- At each step, the helper captures the fixture's current pan/tilt DMX values.
+- After enough captures, backend estimates fixture pose parameters:
+  - position (`x`, `y`, `z`)
+  - orientation (`yaw`, `pitch`, `roll`) or equivalent local-frame basis
+  - optional pan/tilt zero offsets
+- Helper reports residual error against all captured points plus hold-out validation points.
+- Helper writes a dry-run report first, then supports explicit apply to persist accepted updates.
+
+### Recommended Capture Sequence
+
+- Start with easy anchors to establish rough pan direction:
+  - aim to `x=0,y=0`
+  - aim to `x=1,y=0`
+- Continue with spread points across the room volume (including different `z`) to solve full pose.
+- Minimum practical dataset: 6 points; preferred: 8+ points using `ref_*_*_*` anchors.
+
+### Recommended Implementation Direction
+
+- Backend:
+  - Add calibration session state keyed by fixture id.
+  - Add websocket commands for `start_calibration`, `capture_point`, `solve_calibration`, `apply_calibration`.
+  - Implement least-squares solver using all captured vectors between reference targets.
+  - Emit residual summary and candidate fixture updates.
+  - Persist only on explicit apply with backup of `fixtures.json`.
+- Frontend:
+  - Add wizard UI in sidebar for step-by-step capture.
+  - Show current step target coordinates and capture status.
+  - Show solve summary with accept/reject controls.
+
+### Likely Files
+
+- `backend/src/spatial/aim.py`
+- `backend/src/api/websocket.py`
+- `backend/src/app.py`
+- `frontend/src/components/Sidebar.tsx`
+- `frontend/src/hooks/useFixtures.ts`
+- `data/fixtures/fixtures.json`
+
+### Acceptance Criteria
+
+- Wizard can capture multiple manual aim points per fixture.
+- Solver outputs a candidate fixture pose with error metrics.
+- Dry-run report is generated before any file mutation.
+- Applying calibration updates `fixtures.json` only after explicit confirmation.
+- Re-running validation (`docs/pois-validation.md`) shows measurable improvement on ref anchors.
+
 ## Open Decisions
 
 - Whether a direct POI click should select a single stop or a grouped sweep.
