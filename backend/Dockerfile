@@ -5,6 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+COPY calibrate_fixture_positions.py .
 COPY main.py .
 COPY data/ ./data/
 COPY src/ ./src/

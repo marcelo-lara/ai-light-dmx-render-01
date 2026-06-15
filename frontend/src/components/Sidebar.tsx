@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type React from 'react';
-import type { Fixture, SimMode } from '../hooks/useFixtures';
+import type { Fixture, POI, SimMode } from '../hooks/useFixtures';
 
 type SendFn = (id: string, metaKey: string, value: string | number | number[]) => void;
 
@@ -271,6 +271,7 @@ function ParCanRow({ fixture, send }: { fixture: Fixture; send: SendFn }) {
 interface Props {
   movingHeads: Fixture[];
   parcans: Fixture[];
+  virtualPois: POI[];
   simMode: SimMode;
   activePoiId: string | null;
   selectedTargetLabel: string | null;
@@ -280,6 +281,9 @@ interface Props {
   setShowPois: (show: boolean) => void;
   showRefs: boolean;
   setShowRefs: (show: boolean) => void;
+  showVirtualRefs: boolean;
+  setShowVirtualRefs: (show: boolean) => void;
+  onSelectVirtualPoi: (poi: POI) => void;
   setSimMode: (mode: SimMode) => void;
   ballSpeed: number;
   setBallSpeed: (speed: number) => void;
@@ -293,6 +297,7 @@ interface Props {
 export function Sidebar({
   movingHeads,
   parcans,
+  virtualPois,
   simMode,
   activePoiId,
   selectedTargetLabel,
@@ -302,6 +307,9 @@ export function Sidebar({
   setShowPois,
   showRefs,
   setShowRefs,
+  showVirtualRefs,
+  setShowVirtualRefs,
+  onSelectVirtualPoi,
   setSimMode,
   ballSpeed,
   setBallSpeed,
@@ -357,6 +365,15 @@ export function Sidebar({
               onChange={(e) => setShowRefs(e.target.checked)}
             />
             <span>Show REFs</span>
+          </label>
+          <label style={S.checkboxRow}>
+            <input
+              type="checkbox"
+              checked={showVirtualRefs}
+              style={S.checkbox}
+              onChange={(e) => setShowVirtualRefs(e.target.checked)}
+            />
+            <span>Show Virtual REFs</span>
           </label>
         </div>
       </div>
@@ -431,6 +448,31 @@ export function Sidebar({
             <div style={S.note}>Active POI: {activePoiId ?? 'loading...'}</div>
           )}
           <div style={S.note}>Disabled by default so fixture edits stay in simulation only until you opt in.</div>
+        </div>
+      </div>
+
+      <div style={S.divider} />
+
+      <div style={S.section}>
+        <div style={S.sectionTitle}>Virtual References</div>
+        <div style={S.settingsBlock}>
+          {virtualPois.length === 0 ? (
+            <div style={S.note}>No virtual references loaded.</div>
+          ) : (
+            virtualPois.map((poi) => {
+              const active = selectedTargetLabel?.includes(`(${poi.id})`) || activePoiId === poi.id;
+              return (
+                <button
+                  key={poi.id}
+                  style={active ? btnActive : btnBase}
+                  onClick={() => onSelectVirtualPoi(poi)}
+                >
+                  {poi.name}
+                </button>
+              );
+            })
+          )}
+          <div style={S.note}>These targets are runtime-only and use direct aim-at-location commands instead of persisted DMX samples.</div>
         </div>
       </div>
 

@@ -9,7 +9,7 @@ from src.api.websocket import ConnectionManager
 from src.config import FIXTURES_JSON, FRAME_INTERVAL
 from src.dmx.artnet_core import artnet_node
 from src.dmx.models.fixtures import load_all as _load_fixtures
-from src.poi_store import load_pois, load_ref_coordinates
+from src.poi_store import build_virtual_reference_pois, load_pois, load_ref_coordinates
 from src.simulation.ball import create_simulator
 from src.spatial.aim import TrilinearInterpolationStrategy
 
@@ -81,6 +81,7 @@ async def lifespan(app: FastAPI):
     app.state.automation_enabled = True
     app.state.dmx_output_enabled = False
     app.state.pois = load_pois()
+    app.state.virtual_pois = build_virtual_reference_pois()
     app.state.ref_pois = load_ref_coordinates()
     app.state.fixtures = _load_fixtures(str(FIXTURES_JSON))
     
@@ -89,8 +90,11 @@ async def lifespan(app: FastAPI):
         if fixture.fixture_type == "moving_head":
             app.state.aim_strategy.calibrate(fixture, app.state.ref_pois)
 
-    app.state.ball = create_simulator(app.state.sim_mode, app.state.ball_speed, 
-app.state.pois)
+    app.state.ball = create_simulator(
+        app.state.sim_mode,
+        app.state.ball_speed,
+        [*app.state.pois, *app.state.virtual_pois],
+    )
 
     task = asyncio.create_task(_frame_loop(app))
     logger.info("Frame loop started at %d FPS", round(1 / FRAME_INTERVAL))

@@ -7,6 +7,7 @@ import type { FixtureLocation, POI } from './hooks/useFixtures';
 export function App() {
   const [showPois, setShowPois] = useState(true);
   const [showRefs, setShowRefs] = useState(false);
+  const [showVirtualRefs, setShowVirtualRefs] = useState(true);
   const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
   const [targetLocation, setTargetLocation] = useState<FixtureLocation | null>(null);
   const {
@@ -23,6 +24,7 @@ export function App() {
     dmxOutputEnabled,
     setDmxOutputEnabled,
     applyFixtureTargets,
+    aimAtLocation,
     persistPoiTargets,
     ballPositionRef,
     fixtureStatesRef,
@@ -30,6 +32,7 @@ export function App() {
   } = useFixtures();
   const movingHeads = fixtures.filter((f) => f.fixture_type === 'moving_head');
   const parcans = fixtures.filter((f) => f.fixture_type === 'parcan');
+  const virtualPois = pois.filter((poi) => poi.virtual);
   const selectedPoi = selectedPoiId ? pois.find((poi) => poi.id === selectedPoiId) ?? null : null;
   const selectedTargetLabel = selectedPoi ? `${selectedPoi.name} (${selectedPoi.id})` : null;
   const selectedTargetDirty = selectedPoi
@@ -51,6 +54,10 @@ export function App() {
     handleAutomationEnabled(false);
     setSelectedPoiId(poi.id);
     setTargetLocation(poi.location);
+    if (poi.virtual) {
+      aimAtLocation(poi.location);
+      return;
+    }
     applyFixtureTargets(poi.fixtures);
   }
 
@@ -91,11 +98,12 @@ export function App() {
         </div>
       )}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <StageCanvas movingHeads={movingHeads} parcans={parcans} pois={pois} activePoiId={selectedPoiId ?? activePoiId} showPois={showPois} showRefs={showRefs} targetLocation={targetLocation} onSelectPoi={handleSelectPoi} ballPositionRef={ballPositionRef} fixtureStatesRef={fixtureStatesRef} />
+        <StageCanvas movingHeads={movingHeads} parcans={parcans} pois={pois} activePoiId={selectedPoiId ?? activePoiId} showPois={showPois} showRefs={showRefs} showVirtualRefs={showVirtualRefs} targetLocation={targetLocation} onSelectPoi={handleSelectPoi} ballPositionRef={ballPositionRef} fixtureStatesRef={fixtureStatesRef} />
       </div>
       <Sidebar
         movingHeads={movingHeads}
         parcans={parcans}
+        virtualPois={virtualPois}
         simMode={simMode}
         activePoiId={activePoiId}
         selectedTargetLabel={selectedTargetLabel}
@@ -105,6 +113,9 @@ export function App() {
         setShowPois={setShowPois}
         showRefs={showRefs}
         setShowRefs={setShowRefs}
+        showVirtualRefs={showVirtualRefs}
+        setShowVirtualRefs={setShowVirtualRefs}
+        onSelectVirtualPoi={handleSelectPoi}
         setSimMode={setSimMode}
         ballSpeed={ballSpeed}
         setBallSpeed={setBallSpeed}

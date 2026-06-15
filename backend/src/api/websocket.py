@@ -53,7 +53,7 @@ def _load_init_data_from_app(app) -> dict:
     return {
         "type": "init",
         "fixtures": [f.to_dict() for f in app.state.fixtures],
-        "pois": [*app.state.pois, *app.state.ref_pois],
+        "pois": [*app.state.pois, *app.state.virtual_pois, *app.state.ref_pois],
         **_serialize_settings(app),
     }
 
@@ -98,7 +98,7 @@ def _persist_poi_targets(app, poi_id: str, fixture_targets: dict[str, dict[str, 
     else:
         persist_ref_coordinates(persisted_collection)
 
-    return [*app.state.pois, *app.state.ref_pois]
+    return [*app.state.pois, *app.state.virtual_pois, *app.state.ref_pois]
 
 
 def _build_universe_frame(fixtures: Iterable) -> bytearray:
@@ -109,6 +109,20 @@ def _build_universe_frame(fixtures: Iterable) -> bytearray:
         end = min(start + len(data), len(universe))
         universe[start:end] = data[: end - start]
     return universe
+
+
+def _all_runtime_pois(app) -> list[dict]:
+    return [*app.state.pois, *app.state.virtual_pois]
+
+
+def _aim_fixtures_to_location(app, location: dict[str, float]) -> None:
+    for fixture in app.state.fixtures:
+        if fixture.fixture_type != "moving_head":
+            continue
+
+        pan, tilt = app.state.aim_strategy.aim_to_dmx(fixture, location)
+        fixture.set("pan", pan)
+        fixture.set("tilt", tilt)
 
 
 @router.websocket("/ws")
@@ -137,7 +151,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                     websocket.app.state.ball = create_simulator(
                         mode,
                         websocket.app.state.ball_speed,
-                        websocket.app.state.pois,
+                        _all_runtime_pois(websocket.app),
                     )
                     await manager.broadcast({"type": "settings", **_serialize_settings(websocket.app)})
                 continue
@@ -201,6 +215,29 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                     continue
                 if persisted_pois is not None:
                     await manager.broadcast({"type": "pois_updated", "pois": persisted_pois})
+                continue
+
+            if msg.get("type") == "aim_at_location":
+                location = msg.get("location")
+                if not isinstance(location, dict):
+                    continue
+                try:
+                    target_location = {
+                        "x": float(location["x"]),
+                        "y": float(location["y"]),
+                        "z": float(location["z"]),
+                    }
+                except (KeyError, TypeError, ValueError):
+                    continue
+
+                websocket.app.state.automation_enabled = False
+                _aim_fixtures_to_location(websocket.app, target_location)
+                artnet_node.send_frame(
+                    _build_universe_frame(websocket.app.state.fixtures),
+                    universe=0,
+                    source="sender",
+                )
+                await manager.broadcast({"type": "settings", **_serialize_settings(websocket.app)})
                 continue
 
     except WebSocketDisconnect:

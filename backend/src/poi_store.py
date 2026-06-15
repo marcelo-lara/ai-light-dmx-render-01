@@ -19,6 +19,63 @@ def load_pois(path: Path = POIS_JSON) -> list[dict[str, Any]]:
     return _load_poi_file(path)
 
 
+def build_virtual_reference_pois() -> list[dict[str, Any]]:
+    return [
+        {
+            "id": "virtual_left_wall_center",
+            "name": "Virtual left wall center",
+            "location": {"x": 0.0, "y": 0.5, "z": 0.5},
+            "fixtures": {},
+            "virtual": True,
+        },
+        {
+            "id": "virtual_right_wall_center",
+            "name": "Virtual right wall center",
+            "location": {"x": 1.0, "y": 0.5, "z": 0.5},
+            "fixtures": {},
+            "virtual": True,
+        },
+        {
+            "id": "virtual_back_wall_center",
+            "name": "Virtual back wall center",
+            "location": {"x": 0.5, "y": 0.0, "z": 0.5},
+            "fixtures": {},
+            "virtual": True,
+        },
+        {
+            "id": "virtual_front_wall_center",
+            "name": "Virtual front wall center",
+            "location": {"x": 0.5, "y": 1.0, "z": 0.5},
+            "fixtures": {},
+            "virtual": True,
+        },
+        {
+            "id": "virtual_floor_center",
+            "name": "Virtual floor center",
+            "location": {"x": 0.5, "y": 0.5, "z": 0.0},
+            "fixtures": {},
+            "virtual": True,
+        },
+        {
+            "id": "virtual_ceiling_center",
+            "name": "Virtual ceiling center",
+            "location": {"x": 0.5, "y": 0.5, "z": 1.0},
+            "fixtures": {},
+            "virtual": True,
+        },
+    ]
+
+
+def load_runtime_pois(path: Path = POIS_JSON) -> list[dict[str, Any]]:
+    return [*load_pois(path), *build_virtual_reference_pois()]
+
+
+def split_runtime_pois(path: Path = POIS_JSON) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    authored = load_pois(path)
+    virtual = build_virtual_reference_pois()
+    return authored, virtual
+
+
 def load_ref_coordinates(path: Path = REF_COORDINATES_JSON) -> list[dict[str, Any]]:
     return _load_poi_file(path)
 

@@ -17,15 +17,19 @@ interface Props {
   activePoiId: string | null;
   showPois: boolean;
   showRefs: boolean;
+  showVirtualRefs: boolean;
   targetLocation: FixtureLocation | null;
   onSelectPoi: (poi: POI) => void;
   ballPositionRef: MutableRefObject<FixtureLocation>;
   fixtureStatesRef: MutableRefObject<Record<string, FixtureState>>;
 }
 
-export function StageCanvas({ movingHeads, parcans, pois, activePoiId, showPois, showRefs, targetLocation, onSelectPoi, ballPositionRef, fixtureStatesRef }: Props) {
+export function StageCanvas({ movingHeads, parcans, pois, activePoiId, showPois, showRefs, showVirtualRefs, targetLocation, onSelectPoi, ballPositionRef, fixtureStatesRef }: Props) {
   const ballRef = useRef<THREE.Mesh>(null);
   const visiblePois = pois.filter((poi) => {
+    if (poi.virtual) {
+      return showVirtualRefs;
+    }
     const isRef = poi.id.startsWith('ref_');
     return (showPois && !isRef) || (showRefs && isRef);
   });

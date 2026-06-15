@@ -46,6 +46,7 @@ export interface POI {
   name: string;
   location: FixtureLocation;
   fixtures: Record<string, { pan: number; tilt: number }>;
+  virtual?: boolean;
 }
 
 interface FixturesState {
@@ -62,6 +63,7 @@ interface FixturesState {
   setAutomationEnabled: (enabled: boolean) => void;
   setDmxOutputEnabled: (enabled: boolean) => void;
   applyFixtureTargets: (targets: POI['fixtures']) => void;
+  aimAtLocation: (location: FixtureLocation) => void;
   persistPoiTargets: (poiId: string, targets: POI['fixtures']) => void;
   ballPositionRef: MutableRefObject<FixtureLocation>;
   fixtureStatesRef: MutableRefObject<Record<string, FixtureState>>;
@@ -69,7 +71,7 @@ interface FixturesState {
 }
 
 export function useFixtures(): FixturesState {
-  const [state, setState] = useState<Omit<FixturesState, 'ballPositionRef' | 'fixtureStatesRef' | 'sendFixtureCommand' | 'setSimMode' | 'setBallSpeed' | 'setAutomationEnabled' | 'setDmxOutputEnabled' | 'applyFixtureTargets' | 'persistPoiTargets'>>({
+  const [state, setState] = useState<Omit<FixturesState, 'ballPositionRef' | 'fixtureStatesRef' | 'sendFixtureCommand' | 'setSimMode' | 'setBallSpeed' | 'setAutomationEnabled' | 'setDmxOutputEnabled' | 'applyFixtureTargets' | 'aimAtLocation' | 'persistPoiTargets'>>({
     fixtures: [],
     pois: [],
     connected: false,
@@ -153,6 +155,17 @@ export function useFixtures(): FixturesState {
       sendFixtureCommand(fixtureId, 'tilt', target.tilt);
     }
   }, [sendFixtureCommand]);
+
+  const aimAtLocation = useCallback((location: FixtureLocation) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'aim_at_location', location }));
+      ballPositionRef.current = location;
+      setState((s) => ({
+        ...s,
+        automationEnabled: false,
+      }));
+    }
+  }, []);
 
   const persistPoiTargets = useCallback((poiId: string, targets: POI['fixtures']) => {
     setState((s) => ({
@@ -271,6 +284,6 @@ export function useFixtures(): FixturesState {
     };
   }, []);
 
-  return { ...state, ballPositionRef, fixtureStatesRef, sendFixtureCommand, setSimMode, setBallSpeed, setAutomationEnabled, setDmxOutputEnabled, applyFixtureTargets, persistPoiTargets };
+  return { ...state, ballPositionRef, fixtureStatesRef, sendFixtureCommand, setSimMode, setBallSpeed, setAutomationEnabled, setDmxOutputEnabled, applyFixtureTargets, aimAtLocation, persistPoiTargets };
 }
 

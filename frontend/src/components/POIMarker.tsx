@@ -10,8 +10,9 @@ interface Props {
 export function POIMarker({ poi, active, onSelect }: Props) {
   const { x, y: sceneZ, z: sceneY } = poi.location;
   const isRef = poi.id.startsWith('ref_');
-  const color = isRef ? '#4da6ff' : active ? '#7df2a7' : '#ffdd44';
-  const size = isRef ? 0.025 : active ? 0.036 : 0.025;
+  const isVirtual = !!poi.virtual;
+  const color = isVirtual ? '#ff8a3d' : isRef ? '#4da6ff' : active ? '#7df2a7' : '#ffdd44';
+  const size = isVirtual ? (active ? 0.04 : 0.03) : isRef ? 0.025 : active ? 0.036 : 0.025;
 
   return (
     <group
@@ -28,6 +29,11 @@ export function POIMarker({ poi, active, onSelect }: Props) {
             <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.75} />
           </mesh>
         </Billboard>
+      ) : isVirtual ? (
+        <mesh rotation={[0.785, 0.785, 0]}>
+          <octahedronGeometry args={[size / 2, 0]} />
+          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={active ? 1 : 0.7} />
+        </mesh>
       ) : (
         <mesh>
           <boxGeometry args={[size, size, size]} />
