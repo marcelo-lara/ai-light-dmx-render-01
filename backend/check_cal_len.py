@@ -1,11 +1,9 @@
 from src.spatial.aim import *
+from src.poi_store import load_ref_coordinates
 import json
 with open("/app/fixtures/fixtures.json") as f:
     fixtures = json.load(f)
-with open("/app/fixtures/pois.json") as p:
-    pois = json.load(p)
-
-ref_pois = [p for p in pois if is_ref_poi_id(p.get("id", ""))]
+ref_pois = load_ref_coordinates()
 class _Mock: pass
 
 for f in fixtures:

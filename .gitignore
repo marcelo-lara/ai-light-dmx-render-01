@@ -1,5 +1,8 @@
 data
 data/
+!backend/data/
+!backend/data/pois.json
+!backend/data/ref_coordinates.json
 
 # graphify - knowledge graph outputs (large, regenerable, local-only)
 graphify-out/

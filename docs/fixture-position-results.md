@@ -2,7 +2,7 @@
 
 ## Setup
 
-- Calibration source: `ref_*_*_*` only.
+- Calibration source: `backend/data/ref_coordinates.json` (`ref_*_*_*` only).
 - Axis model selection uses all pairwise `ref_*_*_*` vectors (delta-angle vs delta-DMX).
 - Fixture displacement bound: Euclidean distance <= 0.200.
 - Non-ref hold-out guard: candidate is rejected if non-ref pan or tilt MAE exceeds 1.25x baseline.

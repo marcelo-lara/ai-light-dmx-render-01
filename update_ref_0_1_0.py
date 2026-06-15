@@ -1,6 +1,6 @@
 import json
 
-with open("data/fixtures/pois.json", "r") as f:
+with open("backend/data/ref_coordinates.json", "r") as f:
     pois = json.load(f)
 
 for p in pois:
@@ -9,6 +9,6 @@ for p in pois:
         p["fixtures"]["mini_beam_prism_r"]["pan"] = 56638
         p["fixtures"]["mini_beam_prism_r"]["tilt"] = 13477
 
-with open("data/fixtures/pois.json", "w") as f:
+with open("backend/data/ref_coordinates.json", "w") as f:
     json.dump(pois, f, indent=4)
 

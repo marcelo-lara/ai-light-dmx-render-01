@@ -3,6 +3,7 @@ services:
     build: ./backend
     volumes:
       - ./data/fixtures:/app/fixtures:ro
+      - ./backend/data:/app/data
     ports:
       - "5141:5141"
 

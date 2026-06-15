@@ -1,10 +1,10 @@
 import json
+from src.poi_store import load_ref_coordinates
 from src.spatial.aim import InverseKinematicsStrategy, is_ref_poi_id
 
 with open("/app/fixtures/fixtures.json") as f:
     fixtures = json.load(f)
-with open("/app/fixtures/pois.json") as p:
-    pois = json.load(p)
+pois = load_ref_coordinates()
     
 class Fixture: pass
 r_fix = None

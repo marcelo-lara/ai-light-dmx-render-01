@@ -1,6 +1,6 @@
 import json
 
-with open("data/fixtures/pois.json") as f:
+with open("backend/data/ref_coordinates.json") as f:
     pois = json.load(f)
 
 print(f"{'POI ID':<15} | {'L PAN':<7} | {'L TILT':<7} | {'R PAN':<7} | {'R TILT':<7}")

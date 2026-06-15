@@ -8,8 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from src.config import FIXTURES_JSON, POIS_JSON
+from src.config import FIXTURES_JSON, POIS_JSON, REF_COORDINATES_JSON
 from src.dmx.models.fixtures import load_all as load_fixtures
+from src.poi_store import load_all_pois
 from src.spatial.aim import is_ref_poi_id #  (
     aim_to_dmx,
     build_aim_calibrations,
@@ -1034,6 +1035,7 @@ def _apply_estimated_fixture_locations(
 def _run(
     fixtures_json_path: Path,
     pois_json_path: Path,
+    ref_coordinates_json_path: Path,
     validation_out: Path,
     results_out: Path,
     *,
@@ -1043,7 +1045,7 @@ def _run(
     apply_fixture_estimates: bool,
 ) -> None:
     fixtures = load_fixtures(str(fixtures_json_path))
-    pois = json.loads(pois_json_path.read_text())
+    pois = load_all_pois(pois_json_path, ref_coordinates_json_path)
 
     moving_heads = _moving_heads(fixtures)
     optimization_results: list[FixtureOptimizationResult] = []
@@ -1146,6 +1148,12 @@ def _parse_args() -> argparse.Namespace:
         help="Path to pois.json",
     )
     parser.add_argument(
+        "--ref-coordinates-json",
+        type=Path,
+        default=REF_COORDINATES_JSON,
+        help="Path to ref_coordinates.json",
+    )
+    parser.add_argument(
         "--validation-out",
         type=Path,
         default=Path("/workspace/docs/pois-validation.md"),
@@ -1196,6 +1204,7 @@ def main() -> None:
     _run(
         fixtures_json_path=args.fixtures_json,
         pois_json_path=args.pois_json,
+        ref_coordinates_json_path=args.ref_coordinates_json,
         validation_out=args.validation_out,
         results_out=args.results_out,
         bound=float(args.bound),

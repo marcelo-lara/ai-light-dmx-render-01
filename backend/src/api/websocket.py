@@ -4,8 +4,8 @@ from collections.abc import Iterable
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from src.config import POIS_JSON
 from src.dmx.artnet_core import artnet_node
+from src.poi_store import persist_pois
 from src.simulation.ball import create_simulator
 
 logger = logging.getLogger(__name__)
@@ -83,7 +83,7 @@ def _persist_poi_targets(app, poi_id: str, fixture_targets: dict[str, dict[str, 
         return None
 
     app.state.pois = next_pois
-    POIS_JSON.write_text(json.dumps(next_pois, indent=4) + "\n")
+    persist_pois(next_pois)
     return next_pois
 
 

@@ -2,6 +2,7 @@ import json
 import math
 from pathlib import Path
 
+from src.poi_store import load_all_pois
 from src.spatial.aim import (
     TrilinearInterpolationStrategy,
     InverseKinematicsStrategy,
@@ -9,17 +10,19 @@ from src.spatial.aim import (
 )
 
 FIXTURES_FILE = Path("/app/fixtures/fixtures.json")
-POIS_FILE = Path("/app/fixtures/pois.json")
+POIS_FILE = Path("/app/data/pois.json")
+REF_COORDINATES_FILE = Path("/app/data/ref_coordinates.json")
 if not FIXTURES_FILE.exists():
     FIXTURES_FILE = Path("data/fixtures/fixtures.json")
-    POIS_FILE = Path("data/fixtures/pois.json")
+    POIS_FILE = Path("backend/data/pois.json")
+    REF_COORDINATES_FILE = Path("backend/data/ref_coordinates.json")
 
 def load_json(path):
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
 fixtures_data = load_json(FIXTURES_FILE)
-pois_data = load_json(POIS_FILE)
+pois_data = load_all_pois(POIS_FILE, REF_COORDINATES_FILE)
 
 class Fixture:
     pass

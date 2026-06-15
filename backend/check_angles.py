@@ -1,10 +1,10 @@
+from src.poi_store import load_ref_coordinates
 from src.spatial.aim import geometry_angles, build_fixture_aim_calibration, is_ref_poi_id, _predict_axis
 import json
 
 with open("/app/fixtures/fixtures.json") as f:
     fixtures = json.load(f)
-with open("/app/fixtures/pois.json") as p:
-    pois = json.load(p)
+pois = load_ref_coordinates()
 
 class Fixture: pass
 r_fix = next(f for f in fixtures if f["id"] == "mini_beam_prism_r")

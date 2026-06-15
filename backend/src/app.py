@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 from contextlib import asynccontextmanager
 
@@ -7,11 +6,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.websocket import ConnectionManager
-from src.config import FIXTURES_JSON, FRAME_INTERVAL, POIS_JSON
+from src.config import FIXTURES_JSON, FRAME_INTERVAL
 from src.dmx.artnet_core import artnet_node
 from src.dmx.models.fixtures import load_all as _load_fixtures
+from src.poi_store import load_pois, load_ref_coordinates
 from src.simulation.ball import create_simulator
-from src.spatial.aim import TrilinearInterpolationStrategy, is_ref_poi_id
+from src.spatial.aim import TrilinearInterpolationStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -80,14 +80,14 @@ async def lifespan(app: FastAPI):
     app.state.ball_speed = 1.0
     app.state.automation_enabled = True
     app.state.dmx_output_enabled = False
-    app.state.pois = json.loads(POIS_JSON.read_text())
+    app.state.pois = load_pois()
+    app.state.ref_pois = load_ref_coordinates()
     app.state.fixtures = _load_fixtures(str(FIXTURES_JSON))
     
     app.state.aim_strategy = TrilinearInterpolationStrategy()
-    ref_pois = [p for p in app.state.pois if is_ref_poi_id(p.get("id", ""))]
     for fixture in app.state.fixtures:
         if fixture.fixture_type == "moving_head":
-            app.state.aim_strategy.calibrate(fixture, ref_pois)
+            app.state.aim_strategy.calibrate(fixture, app.state.ref_pois)
 
     app.state.ball = create_simulator(app.state.sim_mode, app.state.ball_speed, 
 app.state.pois)

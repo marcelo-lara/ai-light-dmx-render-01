@@ -130,7 +130,7 @@ Mount labels (`wall_left`, `wall_right`, `wall_back`) are useful coarse orientat
   - aim to `x=0,y=0`
   - aim to `x=1,y=0`
 - Continue with spread points across the room volume (including different `z`) to solve full pose.
-- Minimum practical dataset: 6 points; preferred: 8+ points using `ref_*_*_*` anchors.
+- Minimum practical dataset: 6 points; preferred: 8+ points using `ref_*_*_*` anchors from `backend/data/ref_coordinates.json`.
 
 ### Recommended Implementation Direction
 

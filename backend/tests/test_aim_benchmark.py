@@ -4,6 +4,7 @@ from pathlib import Path
 from dataclasses import dataclass
 import pytest
 
+from src.poi_store import load_all_pois
 from src.spatial.aim import (
     TrilinearInterpolationStrategy,
     InverseKinematicsStrategy,
@@ -11,12 +12,15 @@ from src.spatial.aim import (
 )
 
 FIXTURES_FILE = Path("/app/fixtures/fixtures.json")
-POIS_FILE = Path("/app/fixtures/pois.json")
+POIS_FILE = Path("/app/data/pois.json")
+REF_COORDINATES_FILE = Path("/app/data/ref_coordinates.json")
 
 # Fallback values if not found (e.g. running directly on host)
 if not FIXTURES_FILE.exists():
-    FIXTURES_FILE = Path(__file__).parent.parent.parent / "data" / "fixtures" / "fixtures.json"
-    POIS_FILE = Path(__file__).parent.parent.parent / "data" / "fixtures" / "pois.json"
+    repo_root = Path(__file__).parent.parent.parent
+    FIXTURES_FILE = repo_root / "data" / "fixtures" / "fixtures.json"
+    POIS_FILE = repo_root / "backend" / "data" / "pois.json"
+    REF_COORDINATES_FILE = repo_root / "backend" / "data" / "ref_coordinates.json"
 
 def load_json(path: Path):
     with path.open("r", encoding="utf-8") as f:
@@ -24,7 +28,7 @@ def load_json(path: Path):
 
 # Load data once
 fixtures_data = load_json(FIXTURES_FILE)
-pois_data = load_json(POIS_FILE)
+pois_data = load_all_pois(POIS_FILE, REF_COORDINATES_FILE)
 
 @dataclass
 class Fixture:

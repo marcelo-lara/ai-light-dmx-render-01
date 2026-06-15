@@ -1,10 +1,10 @@
 # POI Validation
 
-Calibration source: only `ref_*_*_*` POIs.
+Calibration source: only `ref_*_*_*` anchors from `backend/data/ref_coordinates.json`.
 Model fitting uses all pairwise vectors between available `ref_*_*_*` anchors.
 Difference columns are `calculated - stored`.
 Error % is the average absolute pan/tilt error normalized by 16-bit DMX range.
-Calculated values use ref-only calibration and accepted fixture-position estimates from `fixture-position-results.md`.
+Calculated values use ref-only calibration from `backend/data/ref_coordinates.json` and accepted fixture-position estimates from `fixture-position-results.md`.
 
 ## Error Summary
 
