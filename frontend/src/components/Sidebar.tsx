@@ -157,6 +157,10 @@ function MovingHeadRow({ fixture, send }: { fixture: Fixture; send: SendFn }) {
     setTilt(fixture.tilt ?? 0);
   }, [fixture.tilt]);
 
+  useEffect(() => {
+    setDim(Math.round(fixture.intensity * 255));
+  }, [fixture.intensity]);
+
   return (
     <div style={S.row}>
       <div style={S.fixtureName}>{fixture.name}</div>
@@ -434,6 +438,7 @@ export function Sidebar({
           >
             Update Values
           </button>
+          <div style={S.note}>For virtual references, Update Values stores measured DMX in a separate center-measurements file for accuracy reporting.</div>
 
           <label style={S.checkboxRow}>
             <input

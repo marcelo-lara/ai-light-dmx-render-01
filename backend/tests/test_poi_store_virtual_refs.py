@@ -22,3 +22,19 @@ def test_build_virtual_reference_pois_returns_six_face_centers() -> None:
         {"x": 0.5, "y": 0.5, "z": 0.0},
         {"x": 0.5, "y": 0.5, "z": 1.0},
     ]
+
+
+def test_build_virtual_reference_pois_merges_saved_measurements() -> None:
+    virtual_refs = build_virtual_reference_pois(
+        [
+            {
+                "id": "virtual_floor_center",
+                "fixtures": {
+                    "fixture_a": {"pan": 12345, "tilt": 23456},
+                },
+            }
+        ]
+    )
+
+    floor = next(poi for poi in virtual_refs if poi["id"] == "virtual_floor_center")
+    assert floor["fixtures"] == {"fixture_a": {"pan": 12345, "tilt": 23456}}

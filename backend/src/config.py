@@ -4,6 +4,7 @@ from pathlib import Path
 FIXTURES_JSON = Path("/app/fixtures/fixtures.json")
 POIS_JSON = Path("/app/data/pois.json")
 REF_COORDINATES_JSON = Path("/app/data/ref_coordinates.json")
+VIRTUAL_CENTER_MEASUREMENTS_JSON = Path("/app/data/virtual_center_measurements.json")
 
 # Simulation
 FRAME_RATE = 50          # FPS

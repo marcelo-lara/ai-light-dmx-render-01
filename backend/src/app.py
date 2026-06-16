@@ -9,9 +9,14 @@ from src.api.websocket import ConnectionManager
 from src.config import FIXTURES_JSON, FRAME_INTERVAL
 from src.dmx.artnet_core import artnet_node
 from src.dmx.models.fixtures import load_all as _load_fixtures
-from src.poi_store import build_virtual_reference_pois, load_pois, load_ref_coordinates
+from src.poi_store import (
+    build_virtual_reference_pois,
+    load_pois,
+    load_ref_coordinates,
+    load_virtual_center_measurements,
+)
 from src.simulation.ball import create_simulator
-from src.spatial.aim import TrilinearInterpolationStrategy
+from src.spatial.aim import HybridPanTiltStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +64,15 @@ async def _frame_loop(app: FastAPI) -> None:
 
         if app.state.manager:
             fixture_states = {
-                f.id: {"color_hex": f.color_hex, "intensity": f.intensity}
+                f.id: {
+                    "color_hex": f.color_hex,
+                    "intensity": f.intensity,
+                    **(
+                        {"pan": f.pan, "tilt": f.tilt}
+                        if getattr(f, "fixture_type", None) == "moving_head"
+                        else {}
+                    ),
+                }
                 for f in app.state.fixtures
             }
             await app.state.manager.broadcast(
@@ -81,11 +94,12 @@ async def lifespan(app: FastAPI):
     app.state.automation_enabled = True
     app.state.dmx_output_enabled = False
     app.state.pois = load_pois()
-    app.state.virtual_pois = build_virtual_reference_pois()
+    app.state.virtual_center_measurements = load_virtual_center_measurements()
+    app.state.virtual_pois = build_virtual_reference_pois(app.state.virtual_center_measurements)
     app.state.ref_pois = load_ref_coordinates()
     app.state.fixtures = _load_fixtures(str(FIXTURES_JSON))
     
-    app.state.aim_strategy = TrilinearInterpolationStrategy()
+    app.state.aim_strategy = HybridPanTiltStrategy()
     for fixture in app.state.fixtures:
         if fixture.fixture_type == "moving_head":
             app.state.aim_strategy.calibrate(fixture, app.state.ref_pois)

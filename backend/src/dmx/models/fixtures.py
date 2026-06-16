@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Union
+from typing import Any, Mapping, Union
 
 from src.config import FIXTURES_JSON
 
@@ -44,6 +44,30 @@ COLOR_WHEEL_HEX: dict[str, str] = {
 }
 
 
+def _normalize_orientation(raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, Mapping):
+        return None
+
+    required = ("yaw", "pitch", "roll", "pan_sign", "tilt_reversed")
+    if any(key not in raw for key in required):
+        return None
+
+    try:
+        pan_sign = int(raw["pan_sign"])
+        if pan_sign not in (-1, 1):
+            return None
+
+        return {
+            "yaw": float(raw["yaw"]),
+            "pitch": float(raw["pitch"]),
+            "roll": float(raw["roll"]),
+            "pan_sign": pan_sign,
+            "tilt_reversed": bool(raw["tilt_reversed"]),
+        }
+    except (TypeError, ValueError):
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Abstract base
 # ---------------------------------------------------------------------------
@@ -68,6 +92,7 @@ class BaseFixture(ABC):
         self.base_channel: int = instance["base_channel"]   # 1-based
         self.location: dict = instance["location"]
         self.mount: str | None = instance.get("mount")  # wall_left / wall_right / wall_back / None
+        self.orientation: dict[str, Any] | None = _normalize_orientation(instance.get("orientation"))
 
         # Template data
         self.fixture_type: str = template["type"]
@@ -195,6 +220,7 @@ class BaseFixture(ABC):
             "base_channel": self.base_channel,
             "location": self.location,
             "mount": self.mount,
+            "orientation": self.orientation,
             "beam_angle_degrees": self.beam_angle_degrees,
             "channel_count": self.channel_count,
             "absolute_channels": self.absolute_channels,

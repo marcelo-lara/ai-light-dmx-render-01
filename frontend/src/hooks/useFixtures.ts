@@ -10,12 +10,22 @@ export interface FixtureLocation {
   z: number;
 }
 
+export interface FixtureOrientation {
+  yaw: number;
+  pitch: number;
+  roll: number;
+  pan_sign: number;
+  tilt_reversed: boolean;
+}
+
 export type MountType = 'wall_left' | 'wall_right' | 'wall_back' | 'ceiling';
 
 /** Live colour + intensity for a single fixture, updated every frame. */
 export interface FixtureState {
   color_hex: string;   // e.g. "#FF0000"
   intensity: number;   // 0.0–1.0
+  pan?: number;
+  tilt?: number;
 }
 
 export interface Fixture {
@@ -28,6 +38,7 @@ export interface Fixture {
   absolute_channels: Record<string, number>;
   location: FixtureLocation;
   mount?: MountType;
+  orientation?: FixtureOrientation | null;
   beam_angle_degrees: number;
   color_hex: string;
   intensity: number;
@@ -89,11 +100,32 @@ export function useFixtures(): FixturesState {
   const sendFixtureCommand = useCallback(
     (id: string, metaKey: string, value: string | number | number[]) => {
       if (metaKey === 'pan' || metaKey === 'tilt') {
+        fixtureStatesRef.current[id] = {
+          color_hex: fixtureStatesRef.current[id]?.color_hex ?? '#FFFFFF',
+          intensity: fixtureStatesRef.current[id]?.intensity ?? 0,
+          pan: metaKey === 'pan' ? Number(value) : fixtureStatesRef.current[id]?.pan,
+          tilt: metaKey === 'tilt' ? Number(value) : fixtureStatesRef.current[id]?.tilt,
+        };
         setState((s) => ({
           ...s,
           fixtures: s.fixtures.map((fixture) => (
             fixture.id === id
               ? { ...fixture, [metaKey]: Number(value) }
+              : fixture
+          )),
+        }));
+      }
+      if (metaKey === 'dim') {
+        const normalized = Math.max(0, Math.min(1, Number(value) / 255));
+        fixtureStatesRef.current[id] = {
+          color_hex: fixtureStatesRef.current[id]?.color_hex ?? '#FFFFFF',
+          intensity: normalized,
+        };
+        setState((s) => ({
+          ...s,
+          fixtures: s.fixtures.map((fixture) => (
+            fixture.id === id
+              ? { ...fixture, intensity: normalized }
               : fixture
           )),
         }));
@@ -219,7 +251,12 @@ export function useFixtures(): FixturesState {
           // Seed fixtureStatesRef from init payload (no re-render needed)
           const initial: Record<string, FixtureState> = {};
           for (const f of fixtures) {
-            initial[f.id] = { color_hex: f.color_hex, intensity: f.intensity };
+            initial[f.id] = {
+              color_hex: f.color_hex,
+              intensity: f.intensity,
+              pan: f.pan,
+              tilt: f.tilt,
+            };
           }
           fixtureStatesRef.current = initial;
           setState((s) => ({
@@ -254,6 +291,21 @@ export function useFixtures(): FixturesState {
           }
           if (msg.fixture_states) {
             Object.assign(fixtureStatesRef.current, msg.fixture_states);
+            setState((s) => ({
+              ...s,
+              fixtures: s.fixtures.map((fixture) => {
+                const next = msg.fixture_states?.[fixture.id];
+                if (!next) {
+                  return fixture;
+                }
+                return {
+                  ...fixture,
+                  intensity: next.intensity ?? fixture.intensity,
+                  pan: next.pan ?? fixture.pan,
+                  tilt: next.tilt ?? fixture.tilt,
+                };
+              }),
+            }));
           }
           if (msg.active_poi_id !== undefined) {
             setState((s) => {

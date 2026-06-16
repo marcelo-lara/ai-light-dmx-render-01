@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
-from src.config import POIS_JSON, REF_COORDINATES_JSON
+from src.config import POIS_JSON, REF_COORDINATES_JSON, VIRTUAL_CENTER_MEASUREMENTS_JSON
 
 
 def _load_poi_file(path: Path) -> list[dict[str, Any]]:
@@ -19,8 +19,31 @@ def load_pois(path: Path = POIS_JSON) -> list[dict[str, Any]]:
     return _load_poi_file(path)
 
 
-def build_virtual_reference_pois() -> list[dict[str, Any]]:
-    return [
+def load_virtual_center_measurements(
+    path: Path = VIRTUAL_CENTER_MEASUREMENTS_JSON,
+) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    return _load_poi_file(path)
+
+
+def _virtual_measurements_by_id(
+    measurements: list[dict[str, Any]] | None,
+) -> dict[str, dict[str, Any]]:
+    if not measurements:
+        return {}
+    return {
+        str(measurement.get("id", "")): measurement
+        for measurement in measurements
+        if isinstance(measurement, Mapping)
+    }
+
+
+def build_virtual_reference_pois(
+    measurements: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    measured_by_id = _virtual_measurements_by_id(measurements)
+    refs = [
         {
             "id": "virtual_left_wall_center",
             "name": "Virtual left wall center",
@@ -65,14 +88,28 @@ def build_virtual_reference_pois() -> list[dict[str, Any]]:
         },
     ]
 
+    merged = []
+    for ref in refs:
+        measured = measured_by_id.get(ref["id"], {})
+        merged.append(
+            {
+                **ref,
+                "fixtures": dict(measured.get("fixtures", {})),
+            }
+        )
+    return merged
+
 
 def load_runtime_pois(path: Path = POIS_JSON) -> list[dict[str, Any]]:
-    return [*load_pois(path), *build_virtual_reference_pois()]
+    return [
+        *load_pois(path),
+        *build_virtual_reference_pois(load_virtual_center_measurements()),
+    ]
 
 
 def split_runtime_pois(path: Path = POIS_JSON) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     authored = load_pois(path)
-    virtual = build_virtual_reference_pois()
+    virtual = build_virtual_reference_pois(load_virtual_center_measurements())
     return authored, virtual
 
 
@@ -96,3 +133,10 @@ def persist_ref_coordinates(
     path: Path = REF_COORDINATES_JSON,
 ) -> None:
     path.write_text(json.dumps(ref_coordinates, indent=4) + "\n", encoding="utf-8")
+
+
+def persist_virtual_center_measurements(
+    measurements: list[dict[str, Any]],
+    path: Path = VIRTUAL_CENTER_MEASUREMENTS_JSON,
+) -> None:
+    path.write_text(json.dumps(measurements, indent=4) + "\n", encoding="utf-8")

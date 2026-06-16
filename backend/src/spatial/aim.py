@@ -5,6 +5,14 @@ import re
 from dataclasses import dataclass
 from typing import Mapping, Sequence, Protocol
 
+from src.spatial.origin_calibration import (
+    FixtureOrientationPoseEstimate,
+    build_fixture_aim_samples,
+    estimate_fixture_orientation_pose,
+    origin_is_plausible_for_mount,
+    world_direction_to_dmx,
+)
+
 _REF_POI_ID_RE = re.compile(r"^ref_\d+_\d+_\d+$")
 
 
@@ -62,13 +70,33 @@ def _pan_angle_for_mount(
     return math.atan2(delta_x, delta_y)
 
 
+def _tilt_horizontal_distance(
+    fixture_location: Mapping[str, float],
+    target_location: Mapping[str, float],
+    mount: str | None,
+) -> float:
+    fixture_x, fixture_y, _ = _split_location(fixture_location)
+    target_x, target_y, _ = _split_location(target_location)
+
+    if mount in {"wall_left", "wall_right"}:
+        return abs(target_x - fixture_x)
+    if mount == "wall_back":
+        return abs(target_y - fixture_y)
+    return math.hypot(target_x - fixture_x, target_y - fixture_y)
+
+
 def _tilt_angle(
     fixture_location: Mapping[str, float],
     target_location: Mapping[str, float],
+    mount: str | None,
 ) -> float:
-    fixture_x, fixture_y, fixture_z = _split_location(fixture_location)
-    target_x, target_y, target_z = _split_location(target_location)
-    horizontal_distance = math.hypot(target_x - fixture_x, target_y - fixture_y)
+    _, _, fixture_z = _split_location(fixture_location)
+    _, _, target_z = _split_location(target_location)
+    horizontal_distance = _tilt_horizontal_distance(
+        fixture_location,
+        target_location,
+        mount,
+    )
     return math.atan2(horizontal_distance, fixture_z - target_z)
 
 
@@ -80,6 +108,7 @@ def geometry_angles(
     return _pan_angle_for_mount(fixture_location, target_location, mount), _tilt_angle(
         fixture_location,
         target_location,
+        mount,
     )
 
 
@@ -369,6 +398,245 @@ class InverseKinematicsStrategy:
 
         return max(0, min(65535, pan_value)), max(0, min(65535, tilt_value))
 
+
+class HybridPanTiltStrategy:
+    def __init__(self, pan_strategy: CalculationStrategy | None = None):
+        self._name = "Hybrid Pan Interpolation / Local Tilt"
+        self.pan_strategy = pan_strategy or TrilinearInterpolationStrategy()
+        self.calibrations = {}
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def _should_override_tilt(self, fixture, target_location: Mapping[str, float]) -> bool:
+        mount = getattr(fixture, "mount", None)
+        target_x = float(target_location.get("x", 0.0))
+        target_y = float(target_location.get("y", 0.0))
+
+        if mount == "wall_left":
+            return abs(target_x - 0.0) <= 1e-9
+        if mount == "wall_right":
+            return abs(target_x - 1.0) <= 1e-9
+        if mount == "wall_back":
+            return abs(target_y - 0.0) <= 1e-9
+        return False
+
+    def calibrate(self, fixture, ref_pois: Sequence[Mapping[str, object]]) -> None:
+        if getattr(fixture, "fixture_type", None) != "moving_head":
+            return
+
+        self.pan_strategy.calibrate(fixture, ref_pois)
+        try:
+            self.calibrations[fixture.id] = build_fixture_aim_calibration(fixture, ref_pois)
+        except ValueError:
+            pass
+
+    def aim_to_dmx(self, fixture, target_location: Mapping[str, float]) -> tuple[int, int]:
+        pan, fallback_tilt = self.pan_strategy.aim_to_dmx(fixture, target_location)
+        calibration = self.calibrations.get(fixture.id)
+        if calibration is None or not self._should_override_tilt(fixture, target_location):
+            return pan, fallback_tilt
+
+        _, tilt_angle = geometry_angles(
+            fixture.location,
+            target_location,
+            getattr(fixture, "mount", None),
+        )
+        tilt_value = round(_predict_axis(calibration.tilt, tilt_angle))
+        return pan, max(0, min(65535, tilt_value))
+
+
+@dataclass(frozen=True)
+class FloorProjectedAnchor:
+    x: float
+    y: float
+    pan: int
+    tilt: int
+
+
+class FloorProjectedInterpolationStrategy:
+    def __init__(self):
+        self._name = "Floor Projected Interpolation"
+        self.anchors: dict[str, tuple[FloorProjectedAnchor, ...]] = {}
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def calibrate(self, fixture, ref_pois: Sequence[Mapping[str, object]]) -> None:
+        if getattr(fixture, "fixture_type", None) != "moving_head":
+            return
+
+        anchors: list[FloorProjectedAnchor] = []
+        for poi in ref_pois:
+            location = poi.get("location")
+            fixtures = poi.get("fixtures")
+            if not isinstance(location, Mapping) or not isinstance(fixtures, Mapping):
+                continue
+            target = fixtures.get(fixture.id)
+            if not isinstance(target, Mapping):
+                continue
+
+            anchors.append(
+                FloorProjectedAnchor(
+                    x=float(location.get("x", 0.0)),
+                    y=float(location.get("y", 0.0)),
+                    pan=int(target["pan"]),
+                    tilt=int(target["tilt"]),
+                )
+            )
+
+        self.anchors[fixture.id] = tuple(anchors)
+
+    def aim_to_dmx(self, fixture, target_location: Mapping[str, float]) -> tuple[int, int]:
+        anchors = self.anchors.get(fixture.id, ())
+        if not anchors:
+            return 32768, 32768
+
+        target_x = float(target_location.get("x", 0.0))
+        target_y = float(target_location.get("y", 0.0))
+
+        weighted_pan = 0.0
+        weighted_tilt = 0.0
+        total_weight = 0.0
+        for anchor in anchors:
+            dx = target_x - anchor.x
+            dy = target_y - anchor.y
+            distance_sq = (dx * dx) + (dy * dy)
+            if distance_sq <= 1e-8:
+                return anchor.pan, anchor.tilt
+            weight = 1.0 / distance_sq
+            weighted_pan += anchor.pan * weight
+            weighted_tilt += anchor.tilt * weight
+            total_weight += weight
+
+        if total_weight <= 1e-12:
+            return 32768, 32768
+
+        pan = round(weighted_pan / total_weight)
+        tilt = round(weighted_tilt / total_weight)
+        return max(0, min(65535, pan)), max(0, min(65535, tilt))
+
+
+class PoseBasedStrategy:
+    def __init__(self, fallback: CalculationStrategy | None = None):
+        self._name = "Pose Based (Ray Calibrated)"
+        self.pose_estimates = {}
+        self.fallback = fallback or TrilinearInterpolationStrategy()
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def _saved_pose(self, fixture) -> FixtureOrientationPoseEstimate | None:
+        orientation = getattr(fixture, "orientation", None)
+        location = getattr(fixture, "location", None)
+        if not isinstance(orientation, Mapping) or not isinstance(location, Mapping):
+            return None
+
+        required = ("yaw", "pitch", "roll", "pan_sign", "tilt_reversed")
+        if any(key not in orientation for key in required):
+            return None
+
+        try:
+            pan_sign = int(orientation["pan_sign"])
+            if pan_sign not in (-1, 1):
+                return None
+
+            origin = (
+                float(location["x"]),
+                float(location["y"]),
+                float(location["z"]),
+            )
+            if not origin_is_plausible_for_mount(origin, getattr(fixture, "mount", None)):
+                return None
+
+            return FixtureOrientationPoseEstimate(
+                fixture_id=fixture.id,
+                origin=origin,
+                yaw_radians=float(orientation["yaw"]),
+                pitch_radians=float(orientation["pitch"]),
+                roll_radians=float(orientation["roll"]),
+                pan_sign=pan_sign,
+                tilt_reversed=bool(orientation["tilt_reversed"]),
+                sample_count=0,
+                rejected_count=0,
+                rms_error=0.0,
+                success=True,
+                cost=0.0,
+                message="loaded from fixtures.json",
+            )
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    def calibrate(self, fixture, ref_pois: Sequence[Mapping[str, object]]) -> None:
+        if getattr(fixture, "fixture_type", None) != "moving_head":
+            return
+
+        saved_pose = self._saved_pose(fixture)
+        if saved_pose is not None:
+            self.pose_estimates[fixture.id] = saved_pose
+            return
+
+        self.fallback.calibrate(fixture, ref_pois)
+
+        try:
+            sample_set = build_fixture_aim_samples(ref_pois, fixture.id)
+            pose = estimate_fixture_orientation_pose(
+                fixture.id,
+                sample_set.samples,
+                initial_origin=(
+                    float(fixture.location["x"]),
+                    float(fixture.location["y"]),
+                    float(fixture.location["z"]),
+                ),
+                mount=getattr(fixture, "mount", None),
+                rejected_count=len(sample_set.rejected_reference_ids),
+            )
+        except ValueError:
+            return
+
+        self.pose_estimates[fixture.id] = pose
+        fixture.location = {
+            "x": pose.origin[0],
+            "y": pose.origin[1],
+            "z": pose.origin[2],
+        }
+        fixture.orientation = {
+            "yaw": pose.yaw_radians,
+            "pitch": pose.pitch_radians,
+            "roll": pose.roll_radians,
+            "pan_sign": pose.pan_sign,
+            "tilt_reversed": pose.tilt_reversed,
+        }
+
+    def aim_to_dmx(self, fixture, target_location: Mapping[str, float]) -> tuple[int, int]:
+        pose = self.pose_estimates.get(fixture.id)
+        if pose is None:
+            return self.fallback.aim_to_dmx(fixture, target_location)
+
+        delta_x = float(target_location["x"]) - pose.origin[0]
+        delta_y = float(target_location["y"]) - pose.origin[1]
+        delta_z = float(target_location["z"]) - pose.origin[2]
+        magnitude = math.sqrt((delta_x * delta_x) + (delta_y * delta_y) + (delta_z * delta_z))
+        if magnitude <= 1e-12:
+            return self.fallback.aim_to_dmx(fixture, target_location)
+
+        direction = (
+            delta_x / magnitude,
+            delta_y / magnitude,
+            delta_z / magnitude,
+        )
+        return world_direction_to_dmx(
+            direction,
+            yaw_radians=pose.yaw_radians,
+            pitch_radians=pose.pitch_radians,
+            roll_radians=pose.roll_radians,
+            pan_sign=pose.pan_sign,
+            tilt_reversed=pose.tilt_reversed,
+        )
+
 class TrilinearInterpolationStrategy:
     def __init__(self):
         self._name = "Trilinear Interpolation"
@@ -389,11 +657,17 @@ class TrilinearInterpolationStrategy:
             if poi.get("id") == "table_center":
                 table_center_poi = poi
                 continue
-            loc = poi.get("location", {})
+            loc = poi.get("location")
+            if not isinstance(loc, Mapping):
+                continue
+            fixtures = poi.get("fixtures")
+            if not isinstance(fixtures, Mapping):
+                continue
             x, y, z = round(loc.get("x", 0)), round(loc.get("y", 0)), round(loc.get("z", 0))
-            if "fixtures" in poi and fixture.id in poi["fixtures"]:
-                target = poi["fixtures"][fixture.id]
-                corners[(x, y, z)] = (target["pan"], target["tilt"])
+            if fixture.id in fixtures:
+                target = fixtures[fixture.id]
+                if isinstance(target, Mapping):
+                    corners[(x, y, z)] = (int(target["pan"]), int(target["tilt"]))
                 
         # Fill missing ref_1_0_1 if 0,0,1 and 1,0,0 and 0,0,0 exist
         if (1,0,1) not in corners and (0,0,1) in corners and (1,0,0) in corners and (0,0,0) in corners:
@@ -404,13 +678,21 @@ class TrilinearInterpolationStrategy:
             
         self.corners[fixture.id] = corners
         
-        if table_center_poi and "fixtures" in table_center_poi and fixture.id in table_center_poi["fixtures"]:
-            target = table_center_poi["fixtures"][fixture.id]
-            calc_pan, calc_tilt = self.aim_to_dmx(fixture, table_center_poi.get("location", {}))
-            self.center_offset[fixture.id] = (
-                target["pan"] - calc_pan,
-                target["tilt"] - calc_tilt
-            )
+        if table_center_poi is not None:
+            center_fixtures = table_center_poi.get("fixtures")
+            center_location = table_center_poi.get("location")
+            if (
+                isinstance(center_fixtures, Mapping)
+                and fixture.id in center_fixtures
+                and isinstance(center_location, Mapping)
+            ):
+                target = center_fixtures[fixture.id]
+                if isinstance(target, Mapping):
+                    calc_pan, calc_tilt = self.aim_to_dmx(fixture, center_location)
+                    self.center_offset[fixture.id] = (
+                        int(target["pan"]) - calc_pan,
+                        int(target["tilt"]) - calc_tilt,
+                    )
 
 
     def aim_to_dmx(self, fixture, target_location: Mapping[str, float]) -> tuple[int, int]:
@@ -451,6 +733,144 @@ class TrilinearInterpolationStrategy:
         tilt += offset_tilt * weight
 
         return max(0, min(65535, round(pan))), max(0, min(65535, round(tilt)))
+
+
+@dataclass(frozen=True)
+class MeasurementCorrectionAnchor:
+    location: tuple[float, float, float]
+    face_axis: str
+    face_value: float
+    pan_residual: float
+    tilt_residual: float
+
+
+class MeasuredCorrectionStrategy:
+    def __init__(
+        self,
+        measured_pois: Sequence[Mapping[str, object]] | None = None,
+        fallback: CalculationStrategy | None = None,
+        correction_radius: float = 0.42,
+        face_activation_threshold: float = 0.12,
+    ):
+        self._name = "Measured Correction (Virtual Centers)"
+        self.fallback = fallback or TrilinearInterpolationStrategy()
+        self.measured_pois = tuple(measured_pois or ())
+        self.corrections: dict[str, tuple[MeasurementCorrectionAnchor, ...]] = {}
+        self.correction_radius = float(correction_radius)
+        self.face_activation_threshold = float(face_activation_threshold)
+
+    def _face_for_location(self, location: Mapping[str, float]) -> tuple[str, float] | None:
+        for axis in ("x", "y", "z"):
+            value = float(location.get(axis, 0.0))
+            if abs(value - 0.0) <= 1e-9 or abs(value - 1.0) <= 1e-9:
+                return axis, value
+        return None
+
+    def _active_face_for_target(self, target: tuple[float, float, float]) -> tuple[str, float] | None:
+        candidates = [
+            (abs(target[0] - 0.0), "x", 0.0),
+            (abs(target[0] - 1.0), "x", 1.0),
+            (abs(target[1] - 0.0), "y", 0.0),
+            (abs(target[1] - 1.0), "y", 1.0),
+            (abs(target[2] - 0.0), "z", 0.0),
+            (abs(target[2] - 1.0), "z", 1.0),
+        ]
+        distance, axis, value = min(candidates, key=lambda item: item[0])
+        if distance <= self.face_activation_threshold:
+            return axis, value
+        return None
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def calibrate(self, fixture, ref_pois: Sequence[Mapping[str, object]]) -> None:
+        if getattr(fixture, "fixture_type", None) != "moving_head":
+            return
+
+        self.fallback.calibrate(fixture, ref_pois)
+        anchors: list[MeasurementCorrectionAnchor] = []
+        for poi in self.measured_pois:
+            fixtures = poi.get("fixtures")
+            if not isinstance(fixtures, Mapping):
+                continue
+            measured = fixtures.get(fixture.id)
+            if not isinstance(measured, Mapping):
+                continue
+            location = poi.get("location")
+            if not isinstance(location, Mapping):
+                continue
+
+            base_pan, base_tilt = self.fallback.aim_to_dmx(fixture, location)
+            face = self._face_for_location(location)
+            if face is None:
+                continue
+            anchors.append(
+                MeasurementCorrectionAnchor(
+                    location=(
+                        float(location["x"]),
+                        float(location["y"]),
+                        float(location["z"]),
+                    ),
+                    face_axis=face[0],
+                    face_value=face[1],
+                    pan_residual=float(int(measured["pan"]) - base_pan),
+                    tilt_residual=float(int(measured["tilt"]) - base_tilt),
+                )
+            )
+
+        self.corrections[fixture.id] = tuple(anchors)
+
+    def aim_to_dmx(self, fixture, target_location: Mapping[str, float]) -> tuple[int, int]:
+        base_pan, base_tilt = self.fallback.aim_to_dmx(fixture, target_location)
+        anchors = self.corrections.get(fixture.id, ())
+        if not anchors:
+            return base_pan, base_tilt
+
+        target = (
+            float(target_location["x"]),
+            float(target_location["y"]),
+            float(target_location["z"]),
+        )
+        active_face = self._active_face_for_target(target)
+        if active_face is None:
+            return base_pan, base_tilt
+
+        weighted_pan = 0.0
+        weighted_tilt = 0.0
+        total_weight = 0.0
+        for anchor in anchors:
+            if anchor.face_axis != active_face[0] or abs(anchor.face_value - active_face[1]) > 1e-9:
+                continue
+            dx = target[0] - anchor.location[0]
+            dy = target[1] - anchor.location[1]
+            dz = target[2] - anchor.location[2]
+            distance_sq = (dx * dx) + (dy * dy) + (dz * dz)
+            distance = math.sqrt(distance_sq)
+            if distance <= 1e-8:
+                return (
+                    max(0, min(65535, round(base_pan + anchor.pan_residual))),
+                    max(0, min(65535, round(base_tilt + anchor.tilt_residual))),
+                )
+
+            if distance >= self.correction_radius:
+                continue
+
+            # Fade corrections to zero at the edge of the local neighborhood so
+            # captured virtual centers improve nearby aiming without destabilizing
+            # unrelated room faces.
+            local_falloff = 1.0 - (distance / self.correction_radius)
+            weight = local_falloff / max(distance_sq, 1e-8)
+            weighted_pan += anchor.pan_residual * weight
+            weighted_tilt += anchor.tilt_residual * weight
+            total_weight += weight
+
+        if total_weight <= 1e-12:
+            return base_pan, base_tilt
+
+        corrected_pan = round(base_pan + (weighted_pan / total_weight))
+        corrected_tilt = round(base_tilt + (weighted_tilt / total_weight))
+        return max(0, min(65535, corrected_pan)), max(0, min(65535, corrected_tilt))
 
 # Legacy helper implementations that aim.py used to expose publicly
 def build_aim_calibrations(fixtures, pois):

@@ -5,6 +5,53 @@ import type { MutableRefObject, RefObject } from 'react';
 import type { Fixture, FixtureState } from '../hooks/useFixtures';
 import { getBeamOpacity } from './beamVisuals';
 
+const DMX_MAX = 65535;
+const PAN_RANGE_RADIANS = THREE.MathUtils.degToRad(540);
+const TILT_RANGE_RADIANS = THREE.MathUtils.degToRad(270);
+
+function canonicalDirectionFromDmx(
+  pan: number,
+  tilt: number,
+  panSign: number,
+  tiltReversed: boolean
+): THREE.Vector3 {
+  const basePan = (pan / DMX_MAX) * PAN_RANGE_RADIANS;
+  const baseTilt = (tilt / DMX_MAX) * TILT_RANGE_RADIANS;
+  const panRadians = panSign * basePan;
+  const tiltRadians = tiltReversed ? TILT_RANGE_RADIANS - baseTilt : baseTilt;
+  const horizontal = Math.sin(tiltRadians);
+  return new THREE.Vector3(
+    horizontal * Math.cos(panRadians),
+    horizontal * Math.sin(panRadians),
+    Math.cos(tiltRadians)
+  ).normalize();
+}
+
+function worldDirectionFromFixture(fixtureData: Fixture): THREE.Vector3 | null {
+  const orientation = fixtureData.orientation;
+  if (!orientation || fixtureData.pan === undefined || fixtureData.tilt === undefined) {
+    return null;
+  }
+
+  const canonical = canonicalDirectionFromDmx(
+    fixtureData.pan,
+    fixtureData.tilt,
+    orientation.pan_sign,
+    orientation.tilt_reversed
+  );
+  const euler = new THREE.Euler(
+    orientation.roll,
+    orientation.pitch,
+    orientation.yaw,
+    'XYZ'
+  );
+  return canonical.applyEuler(euler).normalize();
+}
+
+function directionToScene(direction: THREE.Vector3): THREE.Vector3 {
+  return new THREE.Vector3(direction.x, direction.z, direction.y).normalize();
+}
+
 interface Props {
   fixtureData: Fixture;
   targetRef: RefObject<THREE.Mesh | null>;
@@ -22,20 +69,46 @@ export function MovingHead({ fixtureData, targetRef, fixtureId, fixtureStatesRef
     new THREE.Vector3(0, 0, 0),
     new THREE.Vector3(1, 1, 1)
   );
+  const fallbackDirection = new THREE.Vector3();
+  const beamOrigin = new THREE.Vector3();
+  const beamDirection = new THREE.Vector3(0, -1, 0);
+  const beamQuaternion = new THREE.Quaternion();
+  const beamProbeOrigin = new THREE.Vector3();
 
   useFrame(() => {
-    if (!targetRef.current || !baseRef.current || !headRef.current) return;
+    if (!baseRef.current || !headRef.current) return;
 
-    const targetPos = targetRef.current.position;
+    const liveState = fixtureStatesRef.current[fixtureId];
+    const fixtureForAim = {
+      ...fixtureData,
+      pan: liveState?.pan ?? fixtureData.pan,
+      tilt: liveState?.tilt ?? fixtureData.tilt,
+    };
+    const worldDirection = worldDirectionFromFixture(fixtureForAim);
 
     // location.x → scene X, location.z → scene Y (height), location.y → scene Z (depth)
     const sceneX = fixtureData.location.x;
     const sceneY = fixtureData.location.z;
     const sceneZ = fixtureData.location.y;
 
-    const dx = targetPos.x - sceneX;
-    const dy = targetPos.y - sceneY;
-    const dz = targetPos.z - sceneZ;
+    let dx: number;
+    let dy: number;
+    let dz: number;
+    if (worldDirection) {
+      const sceneDirection = directionToScene(worldDirection);
+      dx = sceneDirection.x;
+      dy = sceneDirection.y;
+      dz = sceneDirection.z;
+    } else {
+      if (!targetRef.current) {
+        return;
+      }
+      const targetPos = targetRef.current.position;
+      fallbackDirection.set(targetPos.x - sceneX, targetPos.y - sceneY, targetPos.z - sceneZ).normalize();
+      dx = fallbackDirection.x;
+      dy = fallbackDirection.y;
+      dz = fallbackDirection.z;
+    }
 
     // Pan: atan2 of X and Z displacement
     // TODO: clamp to physical fixture pan limits once ranges are confirmed
@@ -52,13 +125,9 @@ export function MovingHead({ fixtureData, targetRef, fixtureId, fixtureStatesRef
     headRef.current.rotation.x = -tiltAngle;
 
     if (beamRef.current) {
-      const beamOrigin = new THREE.Vector3();
-      const beamDirection = new THREE.Vector3(0, -1, 0);
-      const beamQuaternion = new THREE.Quaternion();
-      const beamProbeOrigin = new THREE.Vector3();
-
       headRef.current.getWorldPosition(beamOrigin);
       headRef.current.getWorldQuaternion(beamQuaternion);
+      beamDirection.set(0, -1, 0);
       beamDirection.applyQuaternion(beamQuaternion).normalize();
 
       // Wall-mounted heads can sit exactly on the room boundary; probe a hair
@@ -73,10 +142,13 @@ export function MovingHead({ fixtureData, targetRef, fixtureId, fixtureStatesRef
     }
 
     // Update beam colour and opacity from live fixture state
-    const fs = fixtureStatesRef.current[fixtureId];
+    const fs = liveState;
     if (fs && beamMaterialRef.current) {
       beamMaterialRef.current.color.set(fs.color_hex);
       beamMaterialRef.current.opacity = getBeamOpacity(fs.color_hex, fs.intensity, 0.6);
+      if (beamRef.current) {
+        beamRef.current.visible = beamMaterialRef.current.opacity > 0.001;
+      }
     }
   });
 

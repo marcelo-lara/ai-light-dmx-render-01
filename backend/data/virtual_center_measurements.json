@@ -1,0 +1,107 @@
+[
+    {
+        "id": "virtual_left_wall_center",
+        "name": "Virtual left wall center",
+        "location": {
+            "x": 0.0,
+            "y": 0.5,
+            "z": 0.5
+        },
+        "fixtures": {},
+        "virtual": true
+    },
+    {
+        "id": "virtual_right_wall_center",
+        "name": "Virtual right wall center",
+        "location": {
+            "x": 1.0,
+            "y": 0.5,
+            "z": 0.5
+        },
+        "fixtures": {
+            "mini_beam_prism_l": {
+                "pan": 40669,
+                "tilt": 26132
+            },
+            "mini_beam_prism_r": {
+                "pan": 1251,
+                "tilt": 0
+            },
+            "head_el150": {
+                "pan": 35078,
+                "tilt": 10684
+            }
+        },
+        "virtual": true
+    },
+    {
+        "id": "virtual_back_wall_center",
+        "name": "Virtual back wall center",
+        "location": {
+            "x": 0.5,
+            "y": 0.0,
+            "z": 0.5
+        },
+        "fixtures": {},
+        "virtual": true
+    },
+    {
+        "id": "virtual_front_wall_center",
+        "name": "Virtual front wall center",
+        "location": {
+            "x": 0.5,
+            "y": 1.0,
+            "z": 0.5
+        },
+        "fixtures": {
+            "mini_beam_prism_l": {
+                "pan": 35246,
+                "tilt": 10223
+            },
+            "mini_beam_prism_r": {
+                "pan": 52423,
+                "tilt": 10912
+            },
+            "head_el150": {
+                "pan": 38866,
+                "tilt": 26243
+            }
+        },
+        "virtual": true
+    },
+    {
+        "id": "virtual_floor_center",
+        "name": "Virtual floor center",
+        "location": {
+            "x": 0.5,
+            "y": 0.5,
+            "z": 0.0
+        },
+        "fixtures": {
+            "mini_beam_prism_l": {
+                "pan": 42001,
+                "tilt": 13366
+            },
+            "mini_beam_prism_r": {
+                "pan": 45411,
+                "tilt": 14834
+            },
+            "head_el150": {
+                "pan": 40289,
+                "tilt": 12088
+            }
+        },
+        "virtual": true
+    },
+    {
+        "id": "virtual_ceiling_center",
+        "name": "Virtual ceiling center",
+        "location": {
+            "x": 0.5,
+            "y": 0.5,
+            "z": 1.0
+        },
+        "fixtures": {},
+        "virtual": true
+    }
+]

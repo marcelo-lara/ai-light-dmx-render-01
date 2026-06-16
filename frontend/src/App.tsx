@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useFixtures } from './hooks/useFixtures';
 import { StageCanvas } from './components/StageCanvas';
 import { Sidebar } from './components/Sidebar';
+import { DebugOverlay } from './components/DebugOverlay';
 import type { FixtureLocation, POI } from './hooks/useFixtures';
 
 export function App() {
@@ -38,7 +39,10 @@ export function App() {
   const selectedTargetDirty = selectedPoi
     ? movingHeads.some((fixture) => {
         const target = selectedPoi.fixtures[fixture.id];
-        return !!target && (target.pan !== (fixture.pan ?? 0) || target.tilt !== (fixture.tilt ?? 0));
+        if (!target) {
+            return !!selectedPoi.virtual;
+        }
+        return target.pan !== (fixture.pan ?? 0) || target.tilt !== (fixture.tilt ?? 0);
       })
     : false;
 
@@ -97,6 +101,7 @@ export function App() {
           connecting to backend…
         </div>
       )}
+      <DebugOverlay movingHeads={movingHeads} fixtureStatesRef={fixtureStatesRef} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <StageCanvas movingHeads={movingHeads} parcans={parcans} pois={pois} activePoiId={selectedPoiId ?? activePoiId} showPois={showPois} showRefs={showRefs} showVirtualRefs={showVirtualRefs} targetLocation={targetLocation} onSelectPoi={handleSelectPoi} ballPositionRef={ballPositionRef} fixtureStatesRef={fixtureStatesRef} />
       </div>

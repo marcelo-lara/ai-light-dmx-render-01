@@ -6,6 +6,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY calibrate_fixture_positions.py .
+COPY report_center_accuracy.py .
+COPY scan_discontinuities.py .
 COPY main.py .
 COPY data/ ./data/
 COPY src/ ./src/

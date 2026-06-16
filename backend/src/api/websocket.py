@@ -5,7 +5,11 @@ from collections.abc import Iterable
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from src.dmx.artnet_core import artnet_node
-from src.poi_store import persist_pois, persist_ref_coordinates
+from src.poi_store import (
+    persist_pois,
+    persist_ref_coordinates,
+    persist_virtual_center_measurements,
+)
 from src.simulation.ball import create_simulator
 
 logger = logging.getLogger(__name__)
@@ -62,7 +66,7 @@ def _persist_poi_targets(app, poi_id: str, fixture_targets: dict[str, dict[str, 
     target_collection_name = None
     persisted_collection = None
 
-    for collection_name in ("pois", "ref_pois"):
+    for collection_name in ("pois", "ref_pois", "virtual_pois"):
         collection = getattr(app.state, collection_name)
         updated = False
         next_pois: list[dict] = []
@@ -95,6 +99,9 @@ def _persist_poi_targets(app, poi_id: str, fixture_targets: dict[str, dict[str, 
 
     if target_collection_name == "pois":
         persist_pois(persisted_collection)
+    elif target_collection_name == "virtual_pois":
+        app.state.virtual_center_measurements = persisted_collection
+        persist_virtual_center_measurements(persisted_collection)
     else:
         persist_ref_coordinates(persisted_collection)
 
