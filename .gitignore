@@ -1,5 +1,6 @@
 data
 data/
+/config
 !backend/data/
 !backend/data/pois.json
 !backend/data/ref_coordinates.json
